@@ -1,13 +1,21 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://starimrzglxcgxiklfzw.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7evNY5nppn4vmg1x75kPEQ_RJ6EgfGG';
 const PORT = process.env.PORT || 3000;
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+async function getUserFromToken(token) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: SUPABASE_ANON_KEY,
+    },
+  });
+  if (!res.ok) return null;
+  return await res.json();
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -36,14 +44,13 @@ io.use(async (socket, next) => {
   if (!token) return next(new Error('Ingen access-token'));
 
   try {
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data.user) {
-      return next(new Error('Ogiltig token'));
-    }
-    socket.data.userId = data.user.id;
+    const user = await getUserFromToken(token);
+    if (!user || !user.id) return next(new Error('Ogiltig token'));
+
+    socket.data.userId = user.id;
     socket.data.username =
-      data.user.user_metadata?.username ||
-      data.user.email?.split('@')[0] ||
+      user.user_metadata?.username ||
+      user.email?.split('@')[0] ||
       'okänd';
     next();
   } catch (err) {
