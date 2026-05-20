@@ -56,115 +56,98 @@ export class World {
     }
   }
 
-  // Stora oregelbundna sjön med synligt djup
+  // Slät, organisk sjö via CatmullRom-kurva genom anchors
   createPond() {
     this.pondCenter = new THREE.Vector3(35, 0, 30);
     this.pondAvgRadius = 14;
 
-    // Skapa en oregelbunden form via THREE.Shape med bezier
-    const shape = new THREE.Shape();
-    const segments = 16;
-    const pondPoints = [];
-    for (let i = 0; i < segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      // Variera radie för organisk form
-      const r = this.pondAvgRadius + Math.sin(angle * 3) * 2.5 + Math.cos(angle * 2) * 1.8;
-      pondPoints.push({ x: Math.cos(angle) * r, z: Math.sin(angle) * r });
+    // Anchor-punkter med varierande radie för organisk form
+    const numAnchors = 14;
+    const anchors = [];
+    for (let i = 0; i < numAnchors; i++) {
+      const angle = (i / numAnchors) * Math.PI * 2;
+      const r =
+        this.pondAvgRadius +
+        Math.sin(angle * 2.3) * 2.8 +
+        Math.cos(angle * 1.7) * 2.2;
+      anchors.push(new THREE.Vector3(Math.cos(angle) * r, 0, Math.sin(angle) * r));
     }
-    shape.moveTo(pondPoints[0].x, pondPoints[0].z);
-    for (let i = 1; i < segments; i++) {
-      shape.lineTo(pondPoints[i].x, pondPoints[i].z);
-    }
-    shape.closePath();
-    this.pondPoints = pondPoints; // för "inPond"-test
+    this.pondAnchors = anchors;
 
-    // Sand-strand: en lite större version av samma form, lägre
-    const sandShape = new THREE.Shape();
-    sandShape.moveTo(pondPoints[0].x * 1.15, pondPoints[0].z * 1.15);
-    for (let i = 1; i < segments; i++) {
-      sandShape.lineTo(pondPoints[i].x * 1.15, pondPoints[i].z * 1.15);
-    }
-    sandShape.closePath();
+    // Slät kurva genom alla anchors (closed)
+    const curve = new THREE.CatmullRomCurve3(anchors, true, 'catmullrom', 0.5);
+    const samplePoints = curve.getPoints(96);
+    this.pondSamplePoints = samplePoints;
+
+    // Hjälp-funktion för att bygga en shape från skalade punkter
+    const makeShape = (scale) => {
+      const s = new THREE.Shape();
+      s.moveTo(samplePoints[0].x * scale, samplePoints[0].z * scale);
+      for (let i = 1; i < samplePoints.length; i++) {
+        s.lineTo(samplePoints[i].x * scale, samplePoints[i].z * scale);
+      }
+      s.closePath();
+      return s;
+    };
+
+    // Sand-strand: lite större än vattnet
     const sand = new THREE.Mesh(
-      new THREE.ShapeGeometry(sandShape),
-      new THREE.MeshStandardMaterial({ color: 0xc8a965 }),
+      new THREE.ShapeGeometry(makeShape(1.13)),
+      new THREE.MeshStandardMaterial({ color: 0xd4b487, roughness: 0.95 }),
     );
     sand.rotation.x = -Math.PI / 2;
     sand.position.set(this.pondCenter.x, 0.015, this.pondCenter.z);
     sand.receiveShadow = true;
     this.scene.add(sand);
 
-    // Botten på sjön - mörkblå/grönt djup
-    const bottomShape = new THREE.Shape();
-    bottomShape.moveTo(pondPoints[0].x * 0.85, pondPoints[0].z * 0.85);
-    for (let i = 1; i < segments; i++) {
-      bottomShape.lineTo(pondPoints[i].x * 0.85, pondPoints[i].z * 0.85);
-    }
-    bottomShape.closePath();
+    // Botten - mörkblå, lite mindre än vattnet och något under marknivå
     const bottom = new THREE.Mesh(
-      new THREE.ShapeGeometry(bottomShape),
-      new THREE.MeshStandardMaterial({ color: 0x0a3d5e, roughness: 0.9 }),
+      new THREE.ShapeGeometry(makeShape(0.94)),
+      new THREE.MeshStandardMaterial({ color: 0x0d3a52, roughness: 0.9 }),
     );
     bottom.rotation.x = -Math.PI / 2;
-    bottom.position.set(this.pondCenter.x, -1.2, this.pondCenter.z);
+    bottom.position.set(this.pondCenter.x, -0.35, this.pondCenter.z);
     this.scene.add(bottom);
 
-    // Brant sluttning från strand ned till botten - gör synligt "hål"
-    // Med ExtrudeGeometry - utdrag av sjö-formen nedåt
-    const slopeShape = new THREE.Shape();
-    slopeShape.moveTo(pondPoints[0].x, pondPoints[0].z);
-    for (let i = 1; i < segments; i++) {
-      slopeShape.lineTo(pondPoints[i].x, pondPoints[i].z);
-    }
-    slopeShape.closePath();
-    const slope = new THREE.Mesh(
-      new THREE.ExtrudeGeometry(slopeShape, {
-        depth: 1.3,
-        bevelEnabled: false,
-      }),
-      new THREE.MeshStandardMaterial({ color: 0x1a5278, side: THREE.DoubleSide }),
-    );
-    slope.rotation.x = Math.PI / 2;
-    slope.position.set(this.pondCenter.x, 0.02, this.pondCenter.z);
-    this.scene.add(slope);
-
-    // Vattenytan
+    // Vattenyta - halvtransparent över botten
     this.water = new THREE.Mesh(
-      new THREE.ShapeGeometry(shape),
+      new THREE.ShapeGeometry(makeShape(1)),
       new THREE.MeshStandardMaterial({
         color: 0x2196f3,
         transparent: true,
-        opacity: 0.7,
-        metalness: 0.3,
-        roughness: 0.2,
+        opacity: 0.72,
+        metalness: 0.4,
+        roughness: 0.15,
       }),
     );
     this.water.rotation.x = -Math.PI / 2;
-    this.water.position.set(this.pondCenter.x, 0.06, this.pondCenter.z);
+    this.water.position.set(this.pondCenter.x, 0.05, this.pondCenter.z);
     this.scene.add(this.water);
 
-    // Fiskeplats - brygga som sticker ut över sjön
-    // Hitta en punkt på kanten i västra delen
-    const fishAngle = Math.PI; // västerut
-    const edgeR = this.pondAvgRadius + Math.sin(fishAngle * 3) * 2.5 + Math.cos(fishAngle * 2) * 1.8;
+    // Fiskeplats - på sandens kant västerut
+    const westPoint = samplePoints.reduce((best, p) => {
+      // Hitta punkt med minsta x-värde (västligaste)
+      return !best || p.x < best.x ? p : best;
+    });
     const fishingPos = new THREE.Vector3(
-      this.pondCenter.x + Math.cos(fishAngle) * (edgeR + 1),
+      this.pondCenter.x + westPoint.x * 1.12,
       0,
-      this.pondCenter.z + Math.sin(fishAngle) * (edgeR + 1),
+      this.pondCenter.z + westPoint.z * 1.12,
     );
     const spot = new FishingSpot(this.scene, fishingPos);
-    spot.group.rotation.y = -Math.PI / 2;
+    // Rotera bryggan så den pekar in mot sjön
+    const inDx = -westPoint.x;
+    const inDz = -westPoint.z;
+    spot.group.rotation.y = Math.atan2(inDx, inDz);
     this.interactables.push(spot);
 
-    // Hinder runt sjön - kan inte gå NER i (vattenkanten)
-    // Skapa kollisionsringar längs sjökanten
-    for (let i = 0; i < segments; i++) {
-      const p = pondPoints[i];
+    // Kollisionspunkter längs sjökanten - var 4:e samplepunkt
+    for (let i = 0; i < samplePoints.length; i += 4) {
+      const p = samplePoints[i];
       this.obstacles.push({
         x: this.pondCenter.x + p.x,
         z: this.pondCenter.z + p.z,
         radius: 0.8,
-        soft: true, // markera som "kan glida runt" - inte hård vägg
       });
     }
   }
@@ -550,8 +533,8 @@ export class World {
     const dx = x - this.pondCenter.x;
     const dz = z - this.pondCenter.z;
     const ang = Math.atan2(dz, dx);
-    // Sjöns radie varierar med vinkel
-    const r = this.pondAvgRadius + Math.sin(ang * 3) * 2.5 + Math.cos(ang * 2) * 1.8;
+    // Använder samma formel som genererar anchors
+    const r = this.pondAvgRadius + Math.sin(ang * 2.3) * 2.8 + Math.cos(ang * 1.7) * 2.2;
     return Math.sqrt(dx * dx + dz * dz) < r + margin;
   }
 
