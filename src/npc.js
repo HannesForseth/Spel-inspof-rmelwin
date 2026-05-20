@@ -96,8 +96,8 @@ export class Merchant {
     this.group.add(rl);
 
     this.group.position.copy(position);
-    // Vänd köpmannen mot lägrets öppning (söderut, mot +z)
-    this.group.rotation.y = Math.PI;
+    // Vänd köpmannen mot porten (söderut, mot +z) - där spelaren kommer ifrån
+    this.group.rotation.y = 0;
     scene.add(this.group);
   }
 

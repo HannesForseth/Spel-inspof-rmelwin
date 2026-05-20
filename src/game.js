@@ -143,9 +143,9 @@ export class Game {
   }
 
   _spawnBear() {
-    // Björnen står utanför grottan
+    // Björnen står inuti grottkammaren - väntar på inkräktare
     const cavePos = this.world.caveCenter;
-    const bearPos = new THREE.Vector3(cavePos.x, 0, cavePos.z + 5);
+    const bearPos = new THREE.Vector3(cavePos.x, 0, cavePos.z - 3);
     this.bear = new Bear(this.scene, bearPos);
     this.creatures.push(this.bear);
   }

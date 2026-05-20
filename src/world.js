@@ -169,111 +169,133 @@ export class World {
     }
   }
 
-  // Grottan: stort berg med faktiskt ingång och invändigt rum
+  // Grottan: U-formad bergmassa med tydlig öppning på framsidan
   createCave() {
     this.caveCenter = new THREE.Vector3(-50, 0, 30);
+    const cx = this.caveCenter.x;
+    const cz = this.caveCenter.z;
 
-    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x424242, roughness: 0.95 });
-    const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 1 });
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.95 });
+    const darkInsideMat = new THREE.MeshStandardMaterial({
+      color: 0x2e2e2e,
+      side: THREE.BackSide,
+      roughness: 1,
+    });
 
-    // Huvuddomen
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(9, 16, 10), stoneMat);
-    dome.position.set(this.caveCenter.x, 4, this.caveCenter.z - 2);
-    dome.castShadow = true;
-    dome.receiveShadow = true;
-    this.scene.add(dome);
-    this.obstacles.push({ x: this.caveCenter.x, z: this.caveCenter.z - 2, radius: 8 });
-
-    // Sidostenar
-    const sideOffsets = [
-      { x: -7, z: 0, r: 5, sr: 4 },
-      { x: 7, z: 0, r: 5, sr: 4 },
-      { x: -10, z: 4, r: 4, sr: 3 },
-      { x: 10, z: 4, r: 4, sr: 3 },
-      { x: 0, z: -8, r: 6, sr: 5 },
+    // Bergmassa - flera stenar i U-form, lämnar öppning åt söder (+z)
+    // Ingången är vid x≈0, z≈+7 (mellan två pelare)
+    const rockClusters = [
+      // Bakre rad (norr)
+      { x: -6, z: -9, r: 5.5 },
+      { x: 0, z: -10, r: 6.5 },
+      { x: 6, z: -9, r: 5.5 },
+      // Vänster sida
+      { x: -10, z: -3, r: 5 },
+      { x: -10, z: 3, r: 4 },
+      // Höger sida
+      { x: 10, z: -3, r: 5 },
+      { x: 10, z: 3, r: 4 },
+      // Pelare runt ingången - tillräckligt mellanrum för att gå in
+      { x: -5, z: 7, r: 2.8 },
+      { x: 5, z: 7, r: 2.8 },
     ];
-    for (const o of sideOffsets) {
-      const rock = new THREE.Mesh(new THREE.SphereGeometry(o.r, 12, 10), stoneMat);
-      rock.position.set(this.caveCenter.x + o.x, o.r * 0.55, this.caveCenter.z + o.z);
+    for (const o of rockClusters) {
+      const rock = new THREE.Mesh(new THREE.SphereGeometry(o.r, 14, 10), stoneMat);
+      // Lite slumpmässig variation så de inte ser identiska ut
+      rock.position.set(
+        cx + o.x + (Math.random() - 0.5) * 0.4,
+        o.r * 0.6 + (Math.random() - 0.5) * 0.3,
+        cz + o.z + (Math.random() - 0.5) * 0.4,
+      );
+      rock.scale.set(1, 0.95 + Math.random() * 0.15, 1);
       rock.castShadow = true;
+      rock.receiveShadow = true;
       this.scene.add(rock);
-      this.obstacles.push({ x: this.caveCenter.x + o.x, z: this.caveCenter.z + o.z, radius: o.sr });
+      // Kollision - lite mindre radie så det inte överlappar grannar
+      this.obstacles.push({
+        x: cx + o.x,
+        z: cz + o.z,
+        radius: o.r * 0.78,
+      });
     }
 
-    // Ingångs-portal (mörk bakgrund)
-    const portalDepth = new THREE.Mesh(
-      new THREE.BoxGeometry(3.5, 3.5, 4),
-      darkStoneMat,
-    );
-    portalDepth.position.set(this.caveCenter.x, 1.75, this.caveCenter.z + 4);
-    this.scene.add(portalDepth);
-
-    // Tunnel-tak - bågformat ovanför ingången
-    const archTop = new THREE.Mesh(
-      new THREE.CylinderGeometry(2, 2, 4, 16, 1, false, Math.PI, Math.PI),
-      stoneMat,
-    );
-    archTop.position.set(this.caveCenter.x, 3.5, this.caveCenter.z + 4);
-    archTop.rotation.z = Math.PI / 2;
-    archTop.rotation.y = Math.PI / 2;
-    archTop.castShadow = true;
-    this.scene.add(archTop);
-
-    // Insida av grottan - en cirkulär kammare INUTI berget
-    // Använd CylinderGeometry med ÖPPEN topp, så att vi ser insidan
+    // Insida - bagformad kammare bakom bergmassan
+    // Använd cylinder med BackSide-material för väggar
     const interior = new THREE.Mesh(
-      new THREE.CylinderGeometry(5, 5, 4, 16, 1, true),
-      new THREE.MeshStandardMaterial({
-        color: 0x3a3a3a,
-        side: THREE.BackSide,
-        roughness: 1,
-      }),
+      new THREE.CylinderGeometry(5.5, 5.5, 5, 18, 1, true),
+      darkInsideMat,
     );
-    interior.position.set(this.caveCenter.x, 2, this.caveCenter.z - 3);
+    interior.position.set(cx, 2.5, cz - 3);
     this.scene.add(interior);
 
-    // Golv inuti
+    // Golv inuti grottan - jord/sten
     const caveFloor = new THREE.Mesh(
-      new THREE.CircleGeometry(5, 16),
+      new THREE.CircleGeometry(6, 18),
       new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.95 }),
     );
     caveFloor.rotation.x = -Math.PI / 2;
-    caveFloor.position.set(this.caveCenter.x, 0.03, this.caveCenter.z - 3);
+    caveFloor.position.set(cx, 0.04, cz - 3);
     caveFloor.receiveShadow = true;
     this.scene.add(caveFloor);
 
-    // Tak ovanför kammaren
+    // Tak ovanför kammaren - mörk skiva
     const caveRoof = new THREE.Mesh(
-      new THREE.CircleGeometry(5, 16),
-      new THREE.MeshStandardMaterial({ color: 0x2a2a2a, side: THREE.DoubleSide }),
+      new THREE.CircleGeometry(6, 18),
+      new THREE.MeshStandardMaterial({ color: 0x1a1a1a, side: THREE.DoubleSide }),
     );
     caveRoof.rotation.x = Math.PI / 2;
-    caveRoof.position.set(this.caveCenter.x, 4, this.caveCenter.z - 3);
+    caveRoof.position.set(cx, 5, cz - 3);
     this.scene.add(caveRoof);
 
-    // Atmosfärisk fackla inne i grottan - lite varmt ljus
-    const torchLight = new THREE.PointLight(0xff8a3d, 2, 14, 2);
-    torchLight.position.set(this.caveCenter.x, 2.5, this.caveCenter.z - 4);
+    // Stalaktiter från taket för känsla
+    for (let i = 0; i < 5; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.random() * 4;
+      const stal = new THREE.Mesh(
+        new THREE.ConeGeometry(0.15 + Math.random() * 0.1, 0.6 + Math.random() * 0.4, 6),
+        stoneMat,
+      );
+      stal.position.set(cx + Math.cos(angle) * r, 4.6, cz - 3 + Math.sin(angle) * r);
+      stal.rotation.x = Math.PI;
+      this.scene.add(stal);
+    }
+
+    // Fackla inne i grottan - varmt ljus + visuell fackla
+    const torchLight = new THREE.PointLight(0xff8a3d, 3, 18, 2);
+    torchLight.position.set(cx, 2.8, cz - 5);
     this.scene.add(torchLight);
-    // Liten orange box som "facklan"
     const torchBox = new THREE.Mesh(
-      new THREE.BoxGeometry(0.2, 0.4, 0.2),
-      new THREE.MeshStandardMaterial({ color: 0xff5722, emissive: 0xff5722, emissiveIntensity: 1 }),
+      new THREE.BoxGeometry(0.22, 0.45, 0.22),
+      new THREE.MeshStandardMaterial({
+        color: 0xff5722,
+        emissive: 0xff5722,
+        emissiveIntensity: 1,
+      }),
     );
-    torchBox.position.set(this.caveCenter.x, 2.5, this.caveCenter.z - 6.5);
+    torchBox.position.set(cx, 2.8, cz - 7);
     this.scene.add(torchBox);
     this.caveTorch = torchBox;
 
-    // Lösa stenar runt
-    for (let i = 0; i < 8; i++) {
+    // Fackelstöd
+    const torchPole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 2.5, 6),
+      new THREE.MeshStandardMaterial({ color: 0x4e342e }),
+    );
+    torchPole.position.set(cx, 1.5, cz - 7);
+    this.scene.add(torchPole);
+
+    // Lösa stenar runt utsidan
+    for (let i = 0; i < 10; i++) {
       const stone = new THREE.Mesh(
         new THREE.DodecahedronGeometry(0.5 + Math.random() * 0.7, 0),
         stoneMat,
       );
       const angle = Math.random() * Math.PI * 2;
-      const r = 9 + Math.random() * 4;
-      const sx = this.caveCenter.x + Math.cos(angle) * r;
-      const sz = this.caveCenter.z + Math.sin(angle) * r;
+      const r = 13 + Math.random() * 4;
+      // Hoppa över zone framför ingången
+      if (Math.abs(Math.cos(angle)) < 0.4 && Math.sin(angle) > 0.3) continue;
+      const sx = cx + Math.cos(angle) * r;
+      const sz = cz + Math.sin(angle) * r;
       stone.position.set(sx, 0.4, sz);
       stone.rotation.y = Math.random() * Math.PI;
       stone.castShadow = true;
@@ -476,20 +498,20 @@ export class World {
   spawnTrees() {
     const positions = [];
     let attempts = 0;
-    // Mycket fler träd nu - skog
-    while (positions.length < 90 && attempts < 1500) {
+    // Tät skog
+    while (positions.length < 180 && attempts < 4000) {
       attempts++;
-      const x = (Math.random() - 0.5) * WORLD_BOUND * 1.8;
-      const z = (Math.random() - 0.5) * WORLD_BOUND * 1.8;
+      const x = (Math.random() - 0.5) * WORLD_BOUND * 1.85;
+      const z = (Math.random() - 0.5) * WORLD_BOUND * 1.85;
       if (this._inPond(x, z, 3)) continue;
       if (this._inCamp(x, z, 2)) continue;
-      if (this._inCave(x, z, 11)) continue;
+      if (this._inCave(x, z, 4)) continue;
       if (new THREE.Vector2(x, z).length() < 6) continue;
       // Undvik stigar (grovt - undvik smala band)
       if (Math.abs(x) < 1.5 && z < 0 && z > -3) continue;
       let tooClose = false;
       for (const p of positions) {
-        if (new THREE.Vector2(x - p.x, z - p.z).length() < 3.5) {
+        if (new THREE.Vector2(x - p.x, z - p.z).length() < 2.6) {
           tooClose = true;
           break;
         }
@@ -542,7 +564,7 @@ export class World {
   _inCave(x, z, margin = 0) {
     const dx = x - this.caveCenter.x;
     const dz = z - this.caveCenter.z;
-    return Math.sqrt(dx * dx + dz * dz) < 9 + margin;
+    return Math.sqrt(dx * dx + dz * dz) < 14 + margin;
   }
 
   isInCamp(position) {

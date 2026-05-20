@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 // Dag/natt-cykel: styr himmelsfärg, solriktning, ljusstyrka
 // och returnerar 'day' eller 'night' så spelet vet när vargar ska komma.
-const DAY_LENGTH = 90; // sekunder för en hel dag (kort så Melwin märker)
+const DAY_LENGTH = 300; // sekunder för en hel dag (5 min - mer tid att utforska)
 
 export class DayNight {
   constructor(scene, sunLight, ambientLight) {
