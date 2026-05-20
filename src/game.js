@@ -357,6 +357,9 @@ export class Game {
       this._cancelInteraction();
     }
 
+    // Separation: knuffa isär djur så de inte staplas på varandra eller spelaren
+    this._separateCreatures();
+
     // Uppdatera djur + boss-attacker. Djur kan inte gå i vattnet.
     for (const c of this.creatures) {
       c.update(dt, this.player.position);
@@ -389,6 +392,7 @@ export class Game {
         const hit = this.player.takeDamage(c.attackDamage);
         if (hit) {
           this.ui.showToast(`💢 ${c.label} attackerade dig! -${c.attackDamage} ❤️`);
+          this.ui.flashDamage();
           this.effects.push(new HitEffect(this.scene, this.player.position.clone().setY(1.5), 0xf44336));
           this._triggerShake(0.45, 0.4);
         }
@@ -459,18 +463,19 @@ export class Game {
     if (weapon === 'sword') {
       const dmg = this.upgrades.getSwordDamage();
       if (dmg <= 0) return;
-      // Vänd gubben mot kameran-riktningen man kollar
-      // Lås mål vid swing-start, men kontrollera räckvidd igen vid impact
-      const lockedTarget = this._findSwordTarget();
+      // Vid impact - slå ALLA djur i framåt-konen (multi-hit)
       this.player.startSwing(() => {
-        // Vid impact-momentet: kolla räckvidd igen
-        const target = lockedTarget && lockedTarget.alive ? lockedTarget : this._findSwordTarget();
-        if (target) {
-          const killed = target.takeDamage(dmg, this.player.position);
-          this.effects.push(new HitEffect(this.scene, target.position.clone(), 0xff5722));
-          if (killed) this._onCreatureKilled(target);
-          this._triggerShake(0.25, 0.3);
+        const targets = this._findSwordTargets();
+        if (targets.length === 0) {
+          this._triggerShake(0.06, 0.06);
+          return;
         }
+        for (const t of targets) {
+          const killed = t.takeDamage(dmg, this.player.position);
+          this.effects.push(new HitEffect(this.scene, t.position.clone().setY(1), 0xffeb3b));
+          if (killed) this._onCreatureKilled(t);
+        }
+        this._triggerShake(0.25, 0.3);
       });
     } else if (weapon === 'bow') {
       const dmg = this.upgrades.getBowDamage();
@@ -505,12 +510,44 @@ export class Game {
     }
   }
 
-  _findSwordTarget() {
+  // Knuffa isär djur så de inte staplas, samt undviker spelaren
+  _separateCreatures() {
+    const playerSep = 1.0; // minsta avstånd djur ↔ spelare
+    const creatureSep = 1.6; // minsta avstånd djur ↔ djur
+
+    for (const c of this.creatures) {
+      if (!c.alive) continue;
+      // Push från spelaren - så de inte står RAKT på dig
+      const pdx = c.position.x - this.player.position.x;
+      const pdz = c.position.z - this.player.position.z;
+      const pd = Math.sqrt(pdx * pdx + pdz * pdz);
+      if (pd < playerSep && pd > 0.01) {
+        const push = (playerSep - pd) * 0.6;
+        c.position.x += (pdx / pd) * push;
+        c.position.z += (pdz / pd) * push;
+      }
+      // Push från andra djur
+      for (const o of this.creatures) {
+        if (o === c || !o.alive) continue;
+        const dx = c.position.x - o.position.x;
+        const dz = c.position.z - o.position.z;
+        const d = Math.sqrt(dx * dx + dz * dz);
+        if (d < creatureSep && d > 0.01) {
+          const push = (creatureSep - d) * 0.3;
+          c.position.x += (dx / d) * push;
+          c.position.z += (dz / d) * push;
+        }
+      }
+      c.group.position.copy(c.position);
+    }
+  }
+
+  // Hittar ALLA djur i framåt-konen inom svärdsräckvidd (multi-hit)
+  _findSwordTargets() {
     const facing = this.player.facing;
     const fx = Math.sin(facing);
     const fz = Math.cos(facing);
-    let target = null;
-    let bestScore = -Infinity;
+    const targets = [];
     for (const c of this.creatures) {
       if (!c.alive) continue;
       const dx = c.position.x - this.player.position.x;
@@ -518,14 +555,10 @@ export class Game {
       const dist = Math.sqrt(dx * dx + dz * dz);
       if (dist > SWORD_RANGE) continue;
       const dot = (dx * fx + dz * fz) / (dist || 1);
-      if (dot < 0.3) continue;
-      const score = dot - dist * 0.1;
-      if (score > bestScore) {
-        bestScore = score;
-        target = c;
-      }
+      if (dot < 0.25) continue; // ~75° framåt
+      targets.push(c);
     }
-    return target;
+    return targets;
   }
 
   _triggerShake(duration, intensity) {

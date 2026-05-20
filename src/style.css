@@ -459,6 +459,21 @@ body {
   background: #666;
 }
 
+#damage-flash {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle, transparent 35%, rgba(255, 50, 50, 0.55));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s;
+  z-index: 5;
+}
+
+#damage-flash.visible {
+  opacity: 1;
+  transition: opacity 0.05s;
+}
+
 #toast {
   position: absolute;
   top: 90px;

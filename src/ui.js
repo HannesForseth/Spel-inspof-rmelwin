@@ -50,6 +50,8 @@ export class UI {
     this.shopContentEl = document.getElementById('shop-content');
     this.closeShopEl = document.getElementById('close-shop');
     this.toastEl = document.getElementById('toast');
+    this.damageFlashEl = document.getElementById('damage-flash');
+    this.damageFlashTimer = null;
     this.shopTabs = document.querySelectorAll('.tab');
 
     this.shopOpen = false;
@@ -203,6 +205,14 @@ export class UI {
     }
 
     this.charContentEl.innerHTML = html;
+  }
+
+  flashDamage() {
+    this.damageFlashEl.classList.add('visible');
+    clearTimeout(this.damageFlashTimer);
+    this.damageFlashTimer = setTimeout(() => {
+      this.damageFlashEl.classList.remove('visible');
+    }, 180);
   }
 
   showToast(msg) {

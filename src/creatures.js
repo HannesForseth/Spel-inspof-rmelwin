@@ -14,6 +14,7 @@ class Creature {
     this.wanderTarget = new THREE.Vector3();
     this.state = 'idle'; // 'idle' | 'flee' | 'chase' | 'attack'
     this.attackCooldown = 0;
+    this.hitFlashTimer = 0;
     this.homePosition = position.clone();
     this.maxRoam = 12; // hur långt från hemmet djuret rör sig
   }
@@ -25,14 +26,18 @@ class Creature {
   takeDamage(amount, fromPos) {
     if (!this.alive) return false;
     this.hp -= amount;
-    // Flammigt hopp åt sidan
+    // Flammigt hopp åt sidan - stark knockback för bättre feedback
     if (fromPos) {
       const dx = this.position.x - fromPos.x;
       const dz = this.position.z - fromPos.z;
       const len = Math.sqrt(dx * dx + dz * dz) || 1;
-      this.velocity.x = (dx / len) * 6;
-      this.velocity.z = (dz / len) * 6;
+      this.velocity.x = (dx / len) * 14;
+      this.velocity.z = (dz / len) * 14;
     }
+    // Stagger - kan inte attackera i 0.5s
+    this.attackCooldown = Math.max(this.attackCooldown, 0.5);
+    // Visuell flash
+    this.hitFlashTimer = 0.15;
     if (this.hp <= 0) {
       this.die();
       return true;
@@ -83,9 +88,26 @@ class Creature {
     this._decide(dt, playerPos);
 
     this.group.position.copy(this.position);
-    if (Math.abs(this.velocity.x) > 0.1 || Math.abs(this.velocity.z) > 0.1) {
+
+    // Vänd mot spelaren när jagar/attackerar, annars vänd i rörelsens riktning
+    if (this._chasingPlayer) {
+      const px = playerPos.x - this.position.x;
+      const pz = playerPos.z - this.position.z;
+      if (Math.abs(px) > 0.01 || Math.abs(pz) > 0.01) {
+        this.facing = Math.atan2(px, pz);
+        this.group.rotation.y = this.facing;
+      }
+    } else if (Math.abs(this.velocity.x) > 0.1 || Math.abs(this.velocity.z) > 0.1) {
       this.facing = Math.atan2(this.velocity.x, this.velocity.z);
       this.group.rotation.y = this.facing;
+    }
+
+    // Hit-flash: blinka röd kort när skadad
+    if (this.hitFlashTimer > 0) {
+      this.hitFlashTimer -= dt;
+      this.group.visible = Math.floor(this.hitFlashTimer * 30) % 2 === 0;
+    } else {
+      this.group.visible = true;
     }
   }
 
@@ -364,17 +386,27 @@ export class Bear extends Creature {
     this.attackCooldown = Math.max(0, this.attackCooldown - dt);
 
     if (dist < this.detectRange) {
-      // Jaga spelaren
+      // Jaga - men stanna vid attack-distans, gå inte INI spelaren
       this.state = 'chase';
-      this.velocity.x += (dx / dist) * this.chaseSpeed * dt * 6;
-      this.velocity.z += (dz / dist) * this.chaseSpeed * dt * 6;
-      const v = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
-      if (v > this.chaseSpeed) {
-        this.velocity.x = (this.velocity.x / v) * this.chaseSpeed;
-        this.velocity.z = (this.velocity.z / v) * this.chaseSpeed;
+      this._chasingPlayer = true;
+      const holdDist = this.attackRange * 0.85;
+      if (dist > holdDist) {
+        // Approach
+        this.velocity.x += (dx / dist) * this.chaseSpeed * dt * 6;
+        this.velocity.z += (dz / dist) * this.chaseSpeed * dt * 6;
+        const v = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+        if (v > this.chaseSpeed) {
+          this.velocity.x = (this.velocity.x / v) * this.chaseSpeed;
+          this.velocity.z = (this.velocity.z / v) * this.chaseSpeed;
+        }
+      } else {
+        // Inom attack-räckhåll - stanna och slå
+        this.velocity.x *= 0.5;
+        this.velocity.z *= 0.5;
       }
     } else {
       this.state = 'idle';
+      this._chasingPlayer = false;
       this.wanderTimer -= dt;
       if (this.wanderTimer <= 0) {
         this.wanderTimer = 4 + Math.random() * 4;
@@ -544,15 +576,23 @@ export class Troll extends Creature {
 
     if (dist < this.detectRange) {
       this.state = 'chase';
-      this.velocity.x += (dx / dist) * this.chaseSpeed * dt * 6;
-      this.velocity.z += (dz / dist) * this.chaseSpeed * dt * 6;
-      const v = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
-      if (v > this.chaseSpeed) {
-        this.velocity.x = (this.velocity.x / v) * this.chaseSpeed;
-        this.velocity.z = (this.velocity.z / v) * this.chaseSpeed;
+      this._chasingPlayer = true;
+      const holdDist = this.attackRange * 0.85;
+      if (dist > holdDist) {
+        this.velocity.x += (dx / dist) * this.chaseSpeed * dt * 6;
+        this.velocity.z += (dz / dist) * this.chaseSpeed * dt * 6;
+        const v = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+        if (v > this.chaseSpeed) {
+          this.velocity.x = (this.velocity.x / v) * this.chaseSpeed;
+          this.velocity.z = (this.velocity.z / v) * this.chaseSpeed;
+        }
+      } else {
+        this.velocity.x *= 0.4;
+        this.velocity.z *= 0.4;
       }
     } else {
       this.state = 'idle';
+      this._chasingPlayer = false;
       this.wanderTimer -= dt;
       if (this.wanderTimer <= 0) {
         this.wanderTimer = 5 + Math.random() * 4;
@@ -702,7 +742,8 @@ export class Wolf extends Creature {
     }
 
     if (dist < this.detectRange) {
-      // Jaga - men aldrig in i lägret
+      this._chasingPlayer = true;
+      // Jaga - men aldrig in i lägret OCH stanna vid attack-distans
       const targetX = this.position.x + (dx / dist) * 2;
       const targetZ = this.position.z + (dz / dist) * 2;
       if (this._inCamp(targetX, targetZ)) {
@@ -711,13 +752,22 @@ export class Wolf extends Creature {
         this.velocity.z *= 0.5;
         return;
       }
-      this.velocity.x += (dx / dist) * this.chaseSpeed * dt * 6;
-      this.velocity.z += (dz / dist) * this.chaseSpeed * dt * 6;
-      const v = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
-      if (v > this.chaseSpeed) {
-        this.velocity.x = (this.velocity.x / v) * this.chaseSpeed;
-        this.velocity.z = (this.velocity.z / v) * this.chaseSpeed;
+      const holdDist = this.attackRange * 0.85;
+      if (dist > holdDist) {
+        this.velocity.x += (dx / dist) * this.chaseSpeed * dt * 6;
+        this.velocity.z += (dz / dist) * this.chaseSpeed * dt * 6;
+        const v = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+        if (v > this.chaseSpeed) {
+          this.velocity.x = (this.velocity.x / v) * this.chaseSpeed;
+          this.velocity.z = (this.velocity.z / v) * this.chaseSpeed;
+        }
+      } else {
+        // I attackpositionen - stanna och slå
+        this.velocity.x *= 0.4;
+        this.velocity.z *= 0.4;
       }
+    } else {
+      this._chasingPlayer = false;
     }
 
     // Säkerhetsnät: om vargen råkar vara i lägret, knuffa ut
