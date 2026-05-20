@@ -656,3 +656,22 @@ body {
 #user-hud button:hover {
   background: rgba(255, 255, 255, 0.22);
 }
+
+#user-hud .net-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+#user-hud .net-status.net-online {
+  background: rgba(76, 175, 80, 0.3);
+}
+
+#user-hud .net-status.net-offline {
+  background: rgba(255, 200, 60, 0.25);
+}
+
+#user-hud .net-status.net-error {
+  background: rgba(255, 80, 80, 0.3);
+}
