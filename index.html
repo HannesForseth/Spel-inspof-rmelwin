@@ -30,6 +30,8 @@
     <div id="hp-bar-container">
       <div id="hp-label">❤️ <span id="hp-text">100/100</span></div>
       <div id="hp-bar"><div id="hp-fill"></div></div>
+      <div id="breath-label" class="hidden">💨 <span id="breath-text">6/6</span></div>
+      <div id="breath-bar" class="hidden"><div id="breath-fill"></div></div>
     </div>
 
     <div id="weapon-hud">
@@ -38,7 +40,13 @@
     </div>
 
     <div id="controls-hint">
-      <b>WASD</b> rörelse · <b>Shift</b> spring · <b>Space</b> hopp · <b>E</b> samla/handla · <b>F</b> attack · <b>1/2</b> vapen · <b>H</b> ät
+      <b>WASD</b> rörelse · <b>Shift</b> spring · <b>Space</b> hopp · <b>E</b> handla · <b>F</b> attack · <b>1/2</b> vapen · <b>H</b> ät · <b>C</b> karaktär
+    </div>
+
+    <div id="character-panel" class="hidden">
+      <h2>👤 Karaktär</h2>
+      <div id="char-content"></div>
+      <button id="close-character">Stäng (C)</button>
     </div>
 
     <div id="interact-prompt"></div>

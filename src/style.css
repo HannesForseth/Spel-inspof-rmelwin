@@ -112,6 +112,123 @@ body {
   transition: width 0.2s;
 }
 
+#breath-label {
+  font-size: 13px;
+  margin-top: 6px;
+  margin-bottom: 4px;
+}
+
+#breath-bar {
+  width: 100%;
+  height: 10px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+#breath-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #29b6f6, #4fc3f7);
+  transition: width 0.15s;
+}
+
+#breath-label.hidden, #breath-bar.hidden {
+  display: none;
+}
+
+#character-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(25, 30, 40, 0.97);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  padding: 24px 28px;
+  border-radius: 14px;
+  width: min(560px, 92vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  pointer-events: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  color: white;
+}
+
+#character-panel.hidden {
+  display: none;
+}
+
+#character-panel h2 {
+  margin-bottom: 14px;
+  font-size: 22px;
+}
+
+#character-panel h3 {
+  margin: 14px 0 8px;
+  font-size: 15px;
+  color: #b0bec5;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.stat-row b {
+  color: #ffeb3b;
+}
+
+.equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.equipment-slot {
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  height: 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #b0bec5;
+  text-align: center;
+  padding: 4px;
+}
+
+.equipment-slot .icon {
+  font-size: 22px;
+  margin-bottom: 2px;
+}
+
+.equipment-slot.filled {
+  border-style: solid;
+  border-color: #4caf50;
+  color: white;
+}
+
+#close-character {
+  display: block;
+  margin: 16px auto 0;
+  background: #555;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  font-family: inherit;
+}
+
 #weapon-hud {
   position: absolute;
   bottom: 70px;

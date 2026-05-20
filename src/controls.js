@@ -7,6 +7,7 @@ export class Controls {
     this.attackQueued = false;
     this.eatQueued = false;
     this.interactQueued = false; // E-tryck (en gång per nedtryckning)
+    this.toggleCharacterQueued = false;
     this.selectedWeapon = null; // 'sword' | 'bow' | null
 
     window.addEventListener('keydown', (e) => {
@@ -20,6 +21,7 @@ export class Controls {
         if (k === 'f') this.attackQueued = true;
         if (k === 'h') this.eatQueued = true;
         if (k === 'e') this.interactQueued = true;
+        if (k === 'c') this.toggleCharacterQueued = true;
         if (k === '1') this.selectedWeapon = 'sword';
         if (k === '2') this.selectedWeapon = 'bow';
       }
@@ -71,6 +73,14 @@ export class Controls {
   consumeInteractPress() {
     if (this.interactQueued) {
       this.interactQueued = false;
+      return true;
+    }
+    return false;
+  }
+
+  consumeToggleCharacter() {
+    if (this.toggleCharacterQueued) {
+      this.toggleCharacterQueued = false;
       return true;
     }
     return false;

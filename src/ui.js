@@ -28,6 +28,16 @@ export class UI {
 
     this.hpTextEl = document.getElementById('hp-text');
     this.hpFillEl = document.getElementById('hp-fill');
+    this.breathLabelEl = document.getElementById('breath-label');
+    this.breathBarEl = document.getElementById('breath-bar');
+    this.breathTextEl = document.getElementById('breath-text');
+    this.breathFillEl = document.getElementById('breath-fill');
+
+    this.charPanelEl = document.getElementById('character-panel');
+    this.charContentEl = document.getElementById('char-content');
+    this.closeCharEl = document.getElementById('close-character');
+    this.characterOpen = false;
+    this.closeCharEl.addEventListener('click', () => this.toggleCharacterPanel());
 
     this.timeLabelEl = document.getElementById('time-label');
 
@@ -88,7 +98,19 @@ export class UI {
     if (player) {
       const pct = (player.hp / player.maxHp) * 100;
       this.hpFillEl.style.width = pct + '%';
-      this.hpTextEl.textContent = `${player.hp}/${player.maxHp}`;
+      this.hpTextEl.textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
+
+      // Andningsmätare - visa när man inte har full andning
+      if (player.breath < player.maxBreath - 0.01) {
+        this.breathLabelEl.classList.remove('hidden');
+        this.breathBarEl.classList.remove('hidden');
+        const bp = (player.breath / player.maxBreath) * 100;
+        this.breathFillEl.style.width = bp + '%';
+        this.breathTextEl.textContent = `${player.breath.toFixed(1)}/${player.maxBreath}`;
+      } else {
+        this.breathLabelEl.classList.add('hidden');
+        this.breathBarEl.classList.add('hidden');
+      }
     }
 
     if (timeLabel) this.timeLabelEl.textContent = timeLabel;
@@ -137,6 +159,50 @@ export class UI {
   closeShop() {
     this.shopOpen = false;
     this.shopEl.classList.add('hidden');
+  }
+
+  toggleCharacterPanel() {
+    this.characterOpen = !this.characterOpen;
+    this.charPanelEl.classList.toggle('hidden', !this.characterOpen);
+    if (this.characterOpen) this.renderCharacterPanel();
+  }
+
+  renderCharacterPanel() {
+    const player = this.game.player;
+    const inv = this.game.inventory;
+    const upg = this.game.upgrades;
+
+    let html = `<h3>Stats</h3>`;
+    html += `<div class="stat-row"><span>❤️ Hälsa</span><b>${Math.ceil(player.hp)} / ${player.maxHp}</b></div>`;
+    html += `<div class="stat-row"><span>💨 Andning</span><b>${player.breath.toFixed(1)} / ${player.maxBreath}</b></div>`;
+    html += `<div class="stat-row"><span>⚔️ Svärdsskada</span><b>${upg.getSwordDamage()}</b></div>`;
+    html += `<div class="stat-row"><span>🏹 Bågskada</span><b>${upg.getBowDamage()}</b></div>`;
+    html += `<div class="stat-row"><span>🏃 Hastighet</span><b>${upg.getMoveSpeed().toFixed(1)} m/s</b></div>`;
+    html += `<div class="stat-row"><span>🎒 Ryggsäck</span><b>${inv.total()} / ${inv.capacity}</b></div>`;
+    html += `<div class="stat-row"><span>💰 Guld</span><b>${inv.gold}</b></div>`;
+
+    html += `<h3>Utrustning</h3>`;
+    html += `<p style="font-size: 12px; opacity: 0.6; margin-bottom: 6px;">Rustning kommer i nästa uppdatering!</p>`;
+    html += `<div class="equipment-grid">
+      <div class="equipment-slot"><div class="icon">🪖</div>Hjälm</div>
+      <div class="equipment-slot"><div class="icon">🛡️</div>Bröstplåt</div>
+      <div class="equipment-slot"><div class="icon">👖</div>Byxor</div>
+      <div class="equipment-slot"><div class="icon">👢</div>Stövlar</div>
+      <div class="equipment-slot ${upg.hasWeapon('sword') ? 'filled' : ''}"><div class="icon">⚔️</div>${upg.hasWeapon('sword') ? `Svärd ⭐${upg.getLevel('sword')}` : 'Svärd'}</div>
+      <div class="equipment-slot ${upg.hasWeapon('bow') ? 'filled' : ''}"><div class="icon">🏹</div>${upg.hasWeapon('bow') ? `Pilbåge ⭐${upg.getLevel('bow')}` : 'Pilbåge'}</div>
+      <div class="equipment-slot"><div class="icon">💍</div>Ring</div>
+      <div class="equipment-slot"><div class="icon">🧿</div>Amulett</div>
+    </div>`;
+
+    html += `<h3>Uppgraderingar</h3>`;
+    for (const key of upg.getAllKeys()) {
+      const def = upg.getDefinition(key);
+      const lvl = upg.getLevel(key);
+      const stars = '★'.repeat(lvl) + '☆'.repeat(def.maxLevel - lvl);
+      html += `<div class="stat-row"><span>${def.label}</span><b>${stars}</b></div>`;
+    }
+
+    this.charContentEl.innerHTML = html;
   }
 
   showToast(msg) {

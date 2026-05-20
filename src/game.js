@@ -7,7 +7,7 @@ import { Upgrades } from './upgrades.js';
 import { UI } from './ui.js';
 import { Save } from './save.js';
 import { DayNight } from './daynight.js';
-import { Rabbit, Deer, Bear, Wolf } from './creatures.js';
+import { Rabbit, Deer, Bear, Wolf, Troll } from './creatures.js';
 import { Arrow, HitEffect, findNearestTarget } from './combat.js';
 
 const INTERACT_RANGE = 3.0;
@@ -53,6 +53,7 @@ export class Game {
     this.creatures = [];
     this._spawnAnimals();
     this._spawnBear();
+    this._spawnTroll();
 
     // Vargspawner (aktiveras på natten)
     this.wolves = [];
@@ -148,6 +149,13 @@ export class Game {
     const bearPos = new THREE.Vector3(cavePos.x, 0, cavePos.z - 3);
     this.bear = new Bear(this.scene, bearPos);
     this.creatures.push(this.bear);
+  }
+
+  _spawnTroll() {
+    // Trollet bor långt borta vid en stenformation på motsatt sida av sjön
+    const trollPos = this.world.trollLairCenter || new THREE.Vector3(70, 0, -60);
+    this.troll = new Troll(this.scene, trollPos);
+    this.creatures.push(this.troll);
   }
 
   _randomSpawnPos(minDist = 15, maxAttempts = 20) {
@@ -260,7 +268,18 @@ export class Game {
     if (!this.ui.shopOpen && this.controls.consumeEat()) {
       this.eatToHeal();
     }
+    if (this.controls.consumeToggleCharacter()) {
+      this.ui.toggleCharacterPanel();
+    }
+
+    // Kolla om spelaren är i sjön (drunkningsmekanik)
+    this.player.inWater = this.world._inPond(
+      this.player.position.x,
+      this.player.position.z,
+      -0.3,
+    );
     this.player.updatePhysics(dt);
+    if (!this.player.isAlive()) this._playerDied();
 
     // Vapenval (visualisera nyligen valt vapen)
     if (this.controls.selectedWeapon !== this.player.activeWeapon) {
@@ -338,10 +357,35 @@ export class Game {
       this._cancelInteraction();
     }
 
-    // Uppdatera djur + björn/varg-attacker
+    // Uppdatera djur + boss-attacker. Djur kan inte gå i vattnet.
     for (const c of this.creatures) {
       c.update(dt, this.player.position);
-      if ((c instanceof Bear || c instanceof Wolf) && c.alive && c.tryAttack(this.player.position)) {
+
+      // Knuffa ut ur sjön om de råkar gå i
+      if (c.alive && this.world._inPond(c.position.x, c.position.z, -0.2)) {
+        const dx = c.position.x - this.world.pondCenter.x;
+        const dz = c.position.z - this.world.pondCenter.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > 0.001) {
+          const ang = Math.atan2(dz, dx);
+          const r =
+            this.world.pondAvgRadius +
+            Math.sin(ang * 2.3) * 2.8 +
+            Math.cos(ang * 1.7) * 2.2;
+          const targetR = r + 1.0;
+          c.position.x = this.world.pondCenter.x + (dx / dist) * targetR;
+          c.position.z = this.world.pondCenter.z + (dz / dist) * targetR;
+          c.velocity.x *= -0.3;
+          c.velocity.z *= -0.3;
+          c.group.position.copy(c.position);
+        }
+      }
+
+      if (
+        (c instanceof Bear || c instanceof Wolf || c instanceof Troll) &&
+        c.alive &&
+        c.tryAttack(this.player.position)
+      ) {
         const hit = this.player.takeDamage(c.attackDamage);
         if (hit) {
           this.ui.showToast(`💢 ${c.label} attackerade dig! -${c.attackDamage} ❤️`);

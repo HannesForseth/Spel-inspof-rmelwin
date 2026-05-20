@@ -16,18 +16,92 @@ export class World {
     this.bobbingFlowers = [];
     this.time = 0;
 
-    // Läger - flyttat något så det finns plats omkring
-    this.campCenter = new THREE.Vector3(0, 0, -8);
-    this.campRadius = 8;
+    // Läger - större för att rymma fler NPC senare
+    this.campCenter = new THREE.Vector3(0, 0, -14);
+    this.campRadius = 12;
 
     this.createGround();
     this.createPond();
     this.createCave();
     this.createCamp();
+    this.createTrollLair();
     this.createPaths();
     this.createFlowers();
     this.spawnTrees();
     this.spawnBushes();
+  }
+
+  // Trollets boplats - en stencirkel på motsatt sida av kartan
+  createTrollLair() {
+    this.trollLairCenter = new THREE.Vector3(70, 0, -60);
+    const cx = this.trollLairCenter.x;
+    const cz = this.trollLairCenter.z;
+
+    // Stora mossiga stenar i en cirkel
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4a5040, roughness: 0.95 });
+    const mossyMat = new THREE.MeshStandardMaterial({ color: 0x3d5a2a, roughness: 0.9 });
+
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2 + 0.2;
+      const r = 7;
+      const stone = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(1.6 + Math.random() * 0.8, 0),
+        stoneMat,
+      );
+      stone.position.set(cx + Math.cos(angle) * r, 1.0, cz + Math.sin(angle) * r);
+      stone.rotation.y = Math.random() * Math.PI * 2;
+      stone.castShadow = true;
+      stone.receiveShadow = true;
+      this.scene.add(stone);
+      this.obstacles.push({
+        x: cx + Math.cos(angle) * r,
+        z: cz + Math.sin(angle) * r,
+        radius: 1.5,
+      });
+
+      // Mossa-toppar
+      const moss = new THREE.Mesh(
+        new THREE.SphereGeometry(1.2, 8, 5),
+        mossyMat,
+      );
+      moss.position.set(cx + Math.cos(angle) * r, 2.0, cz + Math.sin(angle) * r);
+      moss.scale.y = 0.5;
+      this.scene.add(moss);
+    }
+
+    // Eld-pit i mitten (släckt)
+    const ashGeo = new THREE.CircleGeometry(1.2, 16);
+    const ash = new THREE.Mesh(
+      ashGeo,
+      new THREE.MeshStandardMaterial({ color: 0x2a2520, roughness: 1 }),
+    );
+    ash.rotation.x = -Math.PI / 2;
+    ash.position.set(cx, 0.04, cz);
+    this.scene.add(ash);
+
+    // Ben-högar - varning till spelaren
+    const boneMat = new THREE.MeshStandardMaterial({ color: 0xeceff1 });
+    for (let i = 0; i < 5; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = 2 + Math.random() * 2;
+      const bone = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 0.6 + Math.random() * 0.3, 6),
+        boneMat,
+      );
+      bone.position.set(cx + Math.cos(angle) * r, 0.3, cz + Math.sin(angle) * r);
+      bone.rotation.z = Math.random() * Math.PI;
+      bone.rotation.x = Math.random() * 0.3;
+      this.scene.add(bone);
+    }
+
+    // En stor "tron" - sten där trollet sitter ibland
+    const throne = new THREE.Mesh(
+      new THREE.BoxGeometry(2.5, 1.5, 1.5),
+      stoneMat,
+    );
+    throne.position.set(cx, 0.75, cz - 4);
+    throne.castShadow = true;
+    this.scene.add(throne);
   }
 
   createGround() {
@@ -124,15 +198,15 @@ export class World {
     this.water.position.set(this.pondCenter.x, 0.05, this.pondCenter.z);
     this.scene.add(this.water);
 
-    // Fiskeplats - på sandens kant västerut
+    // Fiskeplats - bryggan ska sticka ut över vattnet, fötter på sand
     const westPoint = samplePoints.reduce((best, p) => {
-      // Hitta punkt med minsta x-värde (västligaste)
       return !best || p.x < best.x ? p : best;
     });
+    // Placera vid kanten (faktor 1.02 = precis utanför vattnet)
     const fishingPos = new THREE.Vector3(
-      this.pondCenter.x + westPoint.x * 1.12,
+      this.pondCenter.x + westPoint.x * 1.02,
       0,
-      this.pondCenter.z + westPoint.z * 1.12,
+      this.pondCenter.z + westPoint.z * 1.02,
     );
     const spot = new FishingSpot(this.scene, fishingPos);
     // Rotera bryggan så den pekar in mot sjön
@@ -303,10 +377,10 @@ export class World {
 
     // Palissad
     const logMat = new THREE.MeshStandardMaterial({ color: 0x6d4c2a });
-    const segments = 48;
-    // Gate-öppning: skippa stockar i 70°-110° (söderut)
-    this.gateAngleMin = (70 * Math.PI) / 180;
-    this.gateAngleMax = (110 * Math.PI) / 180;
+    const segments = 64;
+    // Gate-öppning: större port nu (75-105° söderut)
+    this.gateAngleMin = (75 * Math.PI) / 180;
+    this.gateAngleMax = (105 * Math.PI) / 180;
     for (let i = 0; i < segments; i++) {
       const angle = (i / segments) * Math.PI * 2;
       if (angle > this.gateAngleMin && angle < this.gateAngleMax) continue;
@@ -341,26 +415,55 @@ export class World {
       this.scene.add(post);
     }
 
-    // Hyddan - i bortre änden
-    this._createHut(new THREE.Vector3(c.x - 2.5, 0, c.z - 4.5));
+    // Hyddan - bortre delen, nu lite mer åt norr i större läger
+    this._createHut(new THREE.Vector3(c.x - 4, 0, c.z - 6));
 
-    // Lägereld - mitt i lägret
-    const firePos = new THREE.Vector3(c.x + 1, 0, c.z + 1);
+    // Lägereld - mitt i lägret (precis söder om center)
+    const firePos = new THREE.Vector3(c.x, 0, c.z + 2);
     const fire = new Campfire(this.scene, firePos);
     this.interactables.push(fire);
     this.campfire = fire;
     this.obstacles.push({ x: firePos.x, z: firePos.z, radius: 0.9 });
 
-    // Köpman med städ - vänster sida
-    const merchantPos = new THREE.Vector3(c.x + 3.5, 0, c.z - 2);
+    // Köpman + städ - nordöstra sidan
+    const merchantPos = new THREE.Vector3(c.x + 4, 0, c.z - 3);
     this.merchant = new Merchant(this.scene, merchantPos);
     this.interactables.push(this.merchant);
     this.obstacles.push({ x: merchantPos.x, z: merchantPos.z, radius: 0.55 });
 
-    // Städ bredvid köpmannen
-    const anvilPos = new THREE.Vector3(c.x + 4.7, 0, c.z - 1.5);
+    const anvilPos = new THREE.Vector3(c.x + 5.5, 0, c.z - 2.5);
     this.anvil = new Anvil(this.scene, anvilPos);
     this.obstacles.push({ x: anvilPos.x, z: anvilPos.z, radius: 0.6 });
+
+    // Plats reserverad för framtida NPC:s - markörer (synliga som "TBD")
+    this._placeFutureSlots(c);
+  }
+
+  // Markörer där framtida NPC:s ska stå (pelare med tomma "slottar")
+  _placeFutureSlots(c) {
+    const slots = [
+      { x: c.x - 5, z: c.z - 3, label: 'rustningssmed' },
+      { x: c.x - 6.5, z: c.z - 2, label: 'trollkarl' },
+    ];
+    for (const slot of slots) {
+      // Liten platta som markerar var nästa NPC ska stå
+      const pad = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.55, 0.55, 0.1, 12),
+        new THREE.MeshStandardMaterial({ color: 0x6d4c2a, roughness: 0.95 }),
+      );
+      pad.position.set(slot.x, 0.05, slot.z);
+      pad.receiveShadow = true;
+      this.scene.add(pad);
+
+      // Liten pelare/staty som platshållare
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1, 0.15, 1.2, 6),
+        new THREE.MeshStandardMaterial({ color: 0x5d4037 }),
+      );
+      post.position.set(slot.x, 0.7, slot.z);
+      post.castShadow = true;
+      this.scene.add(post);
+    }
   }
 
   _createHut(pos) {
@@ -423,28 +526,39 @@ export class World {
     this.obstacles.push({ x: pos.x, z: pos.z, radius: 2.0 });
   }
 
-  // Bruna stigar mellan viktiga platser
+  // Bruna stigar mellan viktiga platser (stoppar vid sjö/grotta)
   createPaths() {
     const dirtMat = new THREE.MeshStandardMaterial({ color: 0x8b6f47, roughness: 0.95 });
+    // Beräkna gateposition från campCenter
+    const gateAngle = (this.gateAngleMin + this.gateAngleMax) / 2;
+    const gatePos = new THREE.Vector3(
+      this.campCenter.x + Math.cos(gateAngle) * this.campRadius,
+      0,
+      this.campCenter.z + Math.sin(gateAngle) * this.campRadius,
+    );
+
     const places = [
-      { from: new THREE.Vector3(0, 0, 0), to: new THREE.Vector3(0, 0, -3) }, // gate-stig
-      { from: new THREE.Vector3(0, 0, -3), to: this.pondCenter },
-      { from: new THREE.Vector3(0, 0, -3), to: this.caveCenter.clone().setZ(this.caveCenter.z + 5) },
+      { from: new THREE.Vector3(0, 0, 4), to: gatePos },
+      { from: gatePos, to: this.pondCenter, stopAtPond: true },
+      { from: gatePos, to: this.caveCenter, stopAtCave: true },
     ];
     for (const p of places) {
-      this._drawPath(p.from, p.to, dirtMat);
+      this._drawPath(p.from, p.to, dirtMat, p);
     }
   }
 
-  _drawPath(from, to, mat) {
+  _drawPath(from, to, mat, options = {}) {
     const dx = to.x - from.x;
     const dz = to.z - from.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
-    const steps = Math.max(3, Math.floor(dist / 1.5));
+    const steps = Math.max(3, Math.floor(dist / 1.4));
     for (let i = 0; i < steps; i++) {
       const t = i / steps;
       const x = from.x + dx * t + (Math.random() - 0.5) * 0.6;
       const z = from.z + dz * t + (Math.random() - 0.5) * 0.6;
+      // Stoppa innan sjön / grottan
+      if (options.stopAtPond && this._inPond(x, z, 1.5)) break;
+      if (options.stopAtCave && this._inCave(x, z, -3)) break;
       const patch = new THREE.Mesh(
         new THREE.CircleGeometry(0.9 + Math.random() * 0.4, 6),
         mat,
@@ -480,21 +594,55 @@ export class World {
 
   spawnTrees() {
     const positions = [];
+
+    // Skapa kluster-center för tätare skogsområden
+    const clusterCenters = [];
+    while (clusterCenters.length < 9) {
+      const cx = (Math.random() - 0.5) * WORLD_BOUND * 1.5;
+      const cz = (Math.random() - 0.5) * WORLD_BOUND * 1.5;
+      if (this._inPond(cx, cz, 8)) continue;
+      if (this._inCamp(cx, cz, 6)) continue;
+      if (this._inCave(cx, cz, 8)) continue;
+      if (new THREE.Vector2(cx, cz).length() < 18) continue;
+      // Inte för nära varandra
+      let nearOther = false;
+      for (const o of clusterCenters) {
+        if (new THREE.Vector2(cx - o.x, cz - o.z).length() < 25) {
+          nearOther = true;
+          break;
+        }
+      }
+      if (nearOther) continue;
+      clusterCenters.push({ x: cx, z: cz, radius: 8 + Math.random() * 6 });
+    }
+
     let attempts = 0;
-    // Tät skog
-    while (positions.length < 180 && attempts < 4000) {
+    while (positions.length < 320 && attempts < 8000) {
       attempts++;
-      const x = (Math.random() - 0.5) * WORLD_BOUND * 1.85;
-      const z = (Math.random() - 0.5) * WORLD_BOUND * 1.85;
+      let x, z, minDist;
+      // 75% chans att spawna i ett kluster (tätare där), annars utspritt
+      if (Math.random() < 0.75) {
+        const c = clusterCenters[Math.floor(Math.random() * clusterCenters.length)];
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * c.radius;
+        x = c.x + Math.cos(angle) * r;
+        z = c.z + Math.sin(angle) * r;
+        minDist = 2.0; // tätare inom kluster
+      } else {
+        x = (Math.random() - 0.5) * WORLD_BOUND * 1.9;
+        z = (Math.random() - 0.5) * WORLD_BOUND * 1.9;
+        minDist = 3.0;
+      }
       if (this._inPond(x, z, 3)) continue;
       if (this._inCamp(x, z, 2)) continue;
       if (this._inCave(x, z, 4)) continue;
+      if (this._inTrollLair(x, z, 2)) continue;
       if (new THREE.Vector2(x, z).length() < 6) continue;
-      // Undvik stigar (grovt - undvik smala band)
-      if (Math.abs(x) < 1.5 && z < 0 && z > -3) continue;
+      // Undvik stig-banden
+      if (Math.abs(x) < 1.5 && z < 4 && z > -3) continue;
       let tooClose = false;
       for (const p of positions) {
-        if (new THREE.Vector2(x - p.x, z - p.z).length() < 2.6) {
+        if (new THREE.Vector2(x - p.x, z - p.z).length() < minDist) {
           tooClose = true;
           break;
         }
@@ -502,11 +650,9 @@ export class World {
       if (tooClose) continue;
       positions.push({ x, z });
       const tree = new Tree(this.scene, new THREE.Vector3(x, 0, z));
-      // Spara fas för vinden
       tree.swayPhase = Math.random() * Math.PI * 2;
       this.interactables.push(tree);
       this.swayingTrees.push(tree);
-      // Kollision
       this.obstacles.push({ x, z, radius: 0.6 });
     }
   }
@@ -548,6 +694,13 @@ export class World {
     const dx = x - this.caveCenter.x;
     const dz = z - this.caveCenter.z;
     return Math.sqrt(dx * dx + dz * dz) < 14 + margin;
+  }
+
+  _inTrollLair(x, z, margin = 0) {
+    if (!this.trollLairCenter) return false;
+    const dx = x - this.trollLairCenter.x;
+    const dz = z - this.trollLairCenter.z;
+    return Math.sqrt(dx * dx + dz * dz) < 9 + margin;
   }
 
   isInCamp(position) {

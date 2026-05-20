@@ -412,6 +412,189 @@ export class Bear extends Creature {
   }
 }
 
+// Skogstroll: den svåra bossen - mer HP och skada än björnen
+export class Troll extends Creature {
+  constructor(scene, position) {
+    super(scene, position);
+    this.maxHp = 30;
+    this.hp = 30;
+    this.label = 'trollet';
+    this.chaseSpeed = 3.5;
+    this.detectRange = 18;
+    this.attackRange = 3.5;
+    this.attackDamage = 30;
+    this.attackInterval = 2.2;
+    this.respawnTime = 180;
+    this.maxRoam = 5;
+
+    this.group = new THREE.Group();
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0x6a7a3c, roughness: 0.9 });
+    const mossy = new THREE.MeshStandardMaterial({ color: 0x4a5a2c, roughness: 0.95 });
+    const darkSkin = new THREE.MeshStandardMaterial({ color: 0x4d5a26 });
+
+    // Kropp - massiv låda
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.8, 1.2), skinMat);
+    body.position.y = 2.2;
+    body.castShadow = true;
+    this.group.add(body);
+
+    // Mossa på axlarna
+    const mossL = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.3, 1.0), mossy);
+    mossL.position.set(-0.5, 3.05, 0);
+    this.group.add(mossL);
+    const mossR = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.3, 1.0), mossy);
+    mossR.position.set(0.5, 3.05, 0);
+    this.group.add(mossR);
+
+    // Huvud - litet jämfört med kroppen
+    const head = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.0), skinMat);
+    head.position.y = 3.65;
+    head.castShadow = true;
+    this.group.add(head);
+
+    // Spetsiga öron
+    for (const sign of [-1, 1]) {
+      const ear = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.6, 4), skinMat);
+      ear.position.set(sign * 0.5, 4.1, 0);
+      this.group.add(ear);
+    }
+
+    // Lysande röda ögon
+    const eyeMat = new THREE.MeshStandardMaterial({
+      color: 0xff5252,
+      emissive: 0xff5252,
+      emissiveIntensity: 1.0,
+    });
+    const le = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.04), eyeMat);
+    le.position.set(-0.22, 3.7, 0.51);
+    this.group.add(le);
+    const re = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.04), eyeMat);
+    re.position.set(0.22, 3.7, 0.51);
+    this.group.add(re);
+
+    // Underbett - två tänder
+    const toothMat = new THREE.MeshStandardMaterial({ color: 0xfff8e1 });
+    const tL = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 4), toothMat);
+    tL.position.set(-0.18, 3.35, 0.5);
+    tL.rotation.x = Math.PI;
+    this.group.add(tL);
+    const tR = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 4), toothMat);
+    tR.position.set(0.18, 3.35, 0.5);
+    tR.rotation.x = Math.PI;
+    this.group.add(tR);
+
+    // Armar - stora och lätt böjda
+    const armMat = darkSkin;
+    const armGeo = new THREE.BoxGeometry(0.45, 1.8, 0.5);
+    const lArm = new THREE.Mesh(armGeo, armMat);
+    lArm.position.set(-1.15, 2.0, 0);
+    lArm.castShadow = true;
+    this.group.add(lArm);
+    const rArm = new THREE.Mesh(armGeo, armMat);
+    rArm.position.set(1.15, 2.0, 0);
+    rArm.castShadow = true;
+    this.group.add(rArm);
+    this.rightArm = rArm;
+
+    // Klubba i höger hand
+    const clubHandle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.12, 1.4, 8),
+      new THREE.MeshStandardMaterial({ color: 0x6d4c2a }),
+    );
+    clubHandle.position.set(0, -1.0, 0);
+    rArm.add(clubHandle);
+    const clubHead = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.5, 0.5),
+      new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.95 }),
+    );
+    clubHead.position.set(0, -1.7, 0);
+    rArm.add(clubHead);
+
+    // Spikar på klubban
+    for (const [dx, dy, dz] of [[0.3, 0, 0], [-0.3, 0, 0], [0, 0, 0.3], [0, 0, -0.3]]) {
+      const spike = new THREE.Mesh(
+        new THREE.ConeGeometry(0.06, 0.2, 5),
+        new THREE.MeshStandardMaterial({ color: 0xe0e0e0, metalness: 0.6 }),
+      );
+      spike.position.set(dx, -1.7 + dy, dz);
+      spike.rotation.z = Math.atan2(dx, 0) - Math.PI / 2;
+      rArm.add(spike);
+    }
+
+    // Ben
+    const legGeo = new THREE.BoxGeometry(0.55, 1.4, 0.6);
+    const lL = new THREE.Mesh(legGeo, darkSkin);
+    lL.position.set(-0.45, 0.7, 0);
+    lL.castShadow = true;
+    this.group.add(lL);
+    const rL = new THREE.Mesh(legGeo, darkSkin);
+    rL.position.set(0.45, 0.7, 0);
+    rL.castShadow = true;
+    this.group.add(rL);
+
+    this.group.position.copy(position);
+    scene.add(this.group);
+  }
+
+  _decide(dt, playerPos) {
+    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+    const dx = playerPos.x - this.position.x;
+    const dz = playerPos.z - this.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    if (dist < this.detectRange) {
+      this.state = 'chase';
+      this.velocity.x += (dx / dist) * this.chaseSpeed * dt * 6;
+      this.velocity.z += (dz / dist) * this.chaseSpeed * dt * 6;
+      const v = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+      if (v > this.chaseSpeed) {
+        this.velocity.x = (this.velocity.x / v) * this.chaseSpeed;
+        this.velocity.z = (this.velocity.z / v) * this.chaseSpeed;
+      }
+    } else {
+      this.state = 'idle';
+      this.wanderTimer -= dt;
+      if (this.wanderTimer <= 0) {
+        this.wanderTimer = 5 + Math.random() * 4;
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * this.maxRoam;
+        this.wanderTarget.set(
+          this.homePosition.x + Math.cos(angle) * r,
+          0,
+          this.homePosition.z + Math.sin(angle) * r,
+        );
+      }
+      this._wanderTowards(this.wanderTarget, 1.0, dt);
+    }
+
+    // Klubban svingar lätt baserat på rörelse
+    if (this.rightArm) {
+      const speed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+      this.rightArm.rotation.x = Math.sin(performance.now() * 0.003) * (0.1 + speed * 0.1);
+    }
+  }
+
+  tryAttack(playerPos) {
+    if (this.attackCooldown > 0) return false;
+    const dx = playerPos.x - this.position.x;
+    const dz = playerPos.z - this.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < this.attackRange) {
+      this.attackCooldown = this.attackInterval;
+      return true;
+    }
+    return false;
+  }
+
+  getLoot() {
+    return [
+      { type: 'hide', amount: 10 },
+      { type: 'meat', amount: 5 },
+      { type: 'gold', amount: 300 },
+    ];
+  }
+}
+
 // Varg: spawnar bara på natten, jagar spelaren, kan inte gå in i lägret
 export class Wolf extends Creature {
   constructor(scene, position, campCenter, campRadius) {

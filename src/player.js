@@ -36,6 +36,13 @@ export class Player {
     this.invulnTimer = 0;
     this.flashTimer = 0;
 
+    // Andning för vatten
+    this.maxBreath = 6;
+    this.breath = 6;
+    this.inWater = false;
+    this.waterY = 0; // mål-y när man är i vatten
+    this.surfaceY = 0; // smooth-interpolerad y
+
     this.yVel = 0;
     this.onGround = true;
 
@@ -287,7 +294,28 @@ export class Player {
         this.onGround = true;
       }
     }
-    this.group.position.y = this.position.y;
+
+    // I vatten: sjunk gradvis ner. Ur vatten: tillbaka till marknivå.
+    const targetY = this.inWater && this.onGround ? -0.85 : 0;
+    if (this.onGround) {
+      this.surfaceY += (targetY - this.surfaceY) * Math.min(1, dt * 5);
+      this.group.position.y = this.surfaceY;
+    } else {
+      this.surfaceY = 0;
+      this.group.position.y = this.position.y;
+    }
+
+    // Andning - dräneras i vatten, regenererar på land
+    if (this.inWater) {
+      this.breath -= dt;
+      if (this.breath < 0) {
+        this.breath = 0;
+        // Ta skada när andningen är slut
+        this.hp = Math.max(0, this.hp - 18 * dt);
+      }
+    } else {
+      this.breath = Math.min(this.maxBreath, this.breath + dt * 2.5);
+    }
 
     if (this.invulnTimer > 0) {
       this.invulnTimer -= dt;
