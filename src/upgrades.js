@@ -38,12 +38,36 @@ const UPGRADES = {
   },
   bow: {
     label: '🏹 Pilbåge',
-    description: 'Långdistans med autosikte',
+    description: 'Långdistans med autosikte (kräver pilar)',
     maxLevel: 5,
     cost: (level) => (level === 0 ? 80 : 80 * Math.pow(2, level)),
-    damage: (level) => (level === 0 ? 0 : level + 2),
-    range: (level) => 12 + level * 2,
+    // Nerfad - lägre skada än svärd, men säkrare från avstånd
+    damage: (level) => (level === 0 ? 0 : level),
+    range: (level) => 11 + level * 1.5,
   },
+};
+
+// Recept för tillverkning (Köpmannens "Tillverka"-flik)
+export const RECIPES = {
+  arrows: {
+    label: '🏹 Pilar',
+    description: '1 trä → 4 pilar',
+    input: { wood: 1 },
+    output: { arrows: 4 },
+  },
+  cook: {
+    label: '🍖 Tillaga kött',
+    description: '1 rått kött → 1 tillagat (alternativ till elden)',
+    input: { meat: 1 },
+    output: { cookedMeat: 1 },
+  },
+};
+
+// Direkta köp - resurser man kan köpa direkt med guld
+export const BUYABLES = {
+  arrows: { label: '🏹 Pil', price: 6 },
+  berry: { label: '🫐 Bär', price: 4 },
+  cookedMeat: { label: '🍖 Tillagat kött', price: 18 },
 };
 
 export class Upgrades {

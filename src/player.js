@@ -240,14 +240,8 @@ export class Player {
     this.bow.visible = weapon === 'bow' && !this.isChopping;
   }
 
+  // Uppdaterar bara animation/facing baserat på faktisk rörelse (position sätts av game.js efter kollision)
   move(direction, distance) {
-    this.position.x += direction.x * distance;
-    this.position.z += direction.z * distance;
-
-    const maxR = 95;
-    if (Math.abs(this.position.x) > maxR) this.position.x = Math.sign(this.position.x) * maxR;
-    if (Math.abs(this.position.z) > maxR) this.position.z = Math.sign(this.position.z) * maxR;
-
     this.facing = Math.atan2(direction.x, direction.z);
     this.walkTime = (this.walkTime + distance * 6) % (Math.PI * 2);
 
@@ -261,7 +255,6 @@ export class Player {
     if (!this.isChopping && !this.swinging) {
       this.leftArmPivot.rotation.x = -swing * 0.5;
       this.rightArmPivot.rotation.x = swing * 0.5;
-      // Lätt bobbing av torsen
       this.torsoPivot.rotation.x = Math.abs(swing) * 0.05;
     }
   }

@@ -1,53 +1,66 @@
+import { RECIPES, BUYABLES } from './upgrades.js';
+import { MATERIAL_TYPES } from './inventory.js';
+
+const ITEM_LABELS = {
+  wood: '🪵 Trä',
+  berry: '🫐 Bär',
+  fish: '🐟 Fisk',
+  hide: '🟫 Skinn',
+  meat: '🥩 Kött',
+  cookedMeat: '🍖 Tillagat',
+  arrows: '🏹 Pilar',
+};
+
 export class UI {
   constructor(game) {
     this.game = game;
 
-    // Resurs-räknare
     this.woodEl = document.getElementById('wood-count');
     this.berryEl = document.getElementById('berry-count');
     this.fishEl = document.getElementById('fish-count');
     this.hideEl = document.getElementById('hide-count');
     this.meatEl = document.getElementById('meat-count');
     this.cookedEl = document.getElementById('cooked-count');
+    this.arrowEl = document.getElementById('arrow-count');
     this.totalEl = document.getElementById('total-count');
     this.capacityEl = document.getElementById('capacity');
     this.goldEl = document.getElementById('gold-count');
 
-    // HP
     this.hpTextEl = document.getElementById('hp-text');
     this.hpFillEl = document.getElementById('hp-fill');
 
-    // Tid på dygnet
     this.timeLabelEl = document.getElementById('time-label');
 
-    // Vapen
     this.weaponSlots = document.querySelectorAll('.weapon-slot');
 
-    // Övriga
     this.promptEl = document.getElementById('interact-prompt');
     this.progressEl = document.getElementById('progress-bar');
     this.progressFillEl = document.getElementById('progress-fill');
     this.shopEl = document.getElementById('shop');
     this.shopContentEl = document.getElementById('shop-content');
-    this.shopButtonEl = document.getElementById('shop-button');
     this.closeShopEl = document.getElementById('close-shop');
     this.toastEl = document.getElementById('toast');
+    this.shopTabs = document.querySelectorAll('.tab');
 
     this.shopOpen = false;
+    this.activeTab = 'sell';
     this.toastTimer = null;
 
-    this.shopButtonEl.addEventListener('click', () => this.openShop());
     this.closeShopEl.addEventListener('click', () => this.closeShop());
 
+    this.shopTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        this.shopTabs.forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+        this.activeTab = tab.dataset.tab;
+        this.renderShop();
+      });
+    });
+
     window.addEventListener('keydown', (e) => {
-      if (e.key.toLowerCase() === 'b') {
-        if (this.shopOpen) this.closeShop();
-        else this.openShop();
-      }
       if (e.key === 'Escape' && this.shopOpen) this.closeShop();
     });
 
-    // Klick på vapen-slot för att välja
     this.weaponSlots.forEach((slot) => {
       slot.addEventListener('click', () => {
         const w = slot.dataset.weapon;
@@ -67,38 +80,37 @@ export class UI {
     this.hideEl.textContent = inventory.hide;
     this.meatEl.textContent = inventory.meat;
     this.cookedEl.textContent = inventory.cookedMeat;
+    this.arrowEl.textContent = inventory.arrows;
     this.totalEl.textContent = inventory.total();
     this.capacityEl.textContent = inventory.capacity;
     this.goldEl.textContent = inventory.gold;
 
-    // HP-bar
     if (player) {
       const pct = (player.hp / player.maxHp) * 100;
       this.hpFillEl.style.width = pct + '%';
       this.hpTextEl.textContent = `${player.hp}/${player.maxHp}`;
     }
 
-    // Tid
     if (timeLabel) this.timeLabelEl.textContent = timeLabel;
 
-    // Vapen-HUD
     this.weaponSlots.forEach((slot) => {
       const w = slot.dataset.weapon;
       slot.classList.toggle('owned', upgrades.hasWeapon(w));
       slot.classList.toggle('active', activeWeapon === w);
     });
 
-    // Interaktions-prompt
     if (nearest && !this.shopOpen) {
       let msg;
-      if (nearest.actionType === 'cook') {
+      if (nearest.actionType === 'trade') {
+        msg = `Tryck <b>E</b> för att prata med ${nearest.label}`;
+      } else if (nearest.actionType === 'cook') {
         if (inventory.meat > 0) {
           msg = `Håll <b>E</b> för att laga kött på elden`;
         } else {
           msg = `Behöver rått kött för att laga`;
         }
       } else if (inventory.isFull()) {
-        msg = 'Ryggsäcken är full! Sälj i butiken (<b>B</b>)';
+        msg = 'Ryggsäcken är full! Sälj hos köpmannen';
       } else {
         msg = `Håll <b>E</b> för att ${nearest.actionLabel.toLowerCase()} ${nearest.label}`;
       }
@@ -108,7 +120,7 @@ export class UI {
       this.promptEl.classList.remove('visible');
     }
 
-    if (interactingWith && progress > 0) {
+    if (interactingWith && interactingWith.actionType !== 'trade' && progress > 0) {
       this.progressEl.classList.add('visible');
       this.progressFillEl.style.width = `${Math.min(progress * 100, 100)}%`;
     } else {
@@ -137,24 +149,124 @@ export class UI {
   }
 
   renderShop() {
+    switch (this.activeTab) {
+      case 'sell':
+        this._renderSell();
+        break;
+      case 'buy':
+        this._renderBuy();
+        break;
+      case 'upgrade':
+        this._renderUpgrade();
+        break;
+      case 'craft':
+        this._renderCraft();
+        break;
+    }
+  }
+
+  _renderSell() {
+    const inv = this.game.inventory;
+    const prices = inv.getPrices();
+    let html = `<p style="opacity: 0.7; font-size: 13px; margin-bottom: 8px;">Sälj resurser separat. Mat behåller du för att kunna äta.</p>`;
+
+    // Säljbara material först
+    for (const type of MATERIAL_TYPES) {
+      const count = inv[type];
+      const price = prices[type];
+      html += `<div class="shop-item">
+        <div class="info">
+          <div><b>${ITEM_LABELS[type]}</b></div>
+          <div class="sub">${count} st · ${price} 💰 styck · ${count * price} 💰 totalt</div>
+        </div>
+        <button data-sell="${type}" ${count === 0 ? 'disabled' : ''}>Sälj alla</button>
+      </div>`;
+    }
+
+    // Mat - visa men inte sälja-knapp (eller med varning)
+    html += `<h3 style="margin-top: 14px;">Mat (kan säljas men då tappar du läkning)</h3>`;
+    for (const type of ['berry', 'fish', 'meat', 'cookedMeat']) {
+      const count = inv[type];
+      const price = prices[type];
+      html += `<div class="shop-item">
+        <div class="info">
+          <div><b>${ITEM_LABELS[type]}</b></div>
+          <div class="sub">${count} st · ${price} 💰 styck</div>
+        </div>
+        <button data-sell="${type}" ${count === 0 ? 'disabled' : ''} style="background: #ff9800;">Sälj alla</button>
+      </div>`;
+    }
+
+    this.shopContentEl.innerHTML = html;
+    this.shopContentEl.querySelectorAll('button[data-sell]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const type = btn.dataset.sell;
+        const earned = inv.sellAllOf(type);
+        if (earned > 0) {
+          this.showToast(`+${earned} 💰`);
+          this.renderShop();
+        }
+      });
+    });
+  }
+
+  _renderBuy() {
+    const inv = this.game.inventory;
+    let html = `<p style="opacity: 0.7; font-size: 13px; margin-bottom: 8px;">Köp resurser direkt om du behöver dem snabbt.</p>`;
+
+    for (const key of Object.keys(BUYABLES)) {
+      const item = BUYABLES[key];
+      const canAfford = inv.gold >= item.price;
+      const owned = inv[key] || 0;
+      html += `<div class="shop-item">
+        <div class="info">
+          <div><b>${item.label}</b></div>
+          <div class="sub">Pris: ${item.price} 💰 · Du har: ${owned}</div>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <input class="qty-input" type="number" min="1" max="99" value="1" data-buy-qty="${key}" />
+          <button data-buy="${key}" ${canAfford ? '' : 'disabled'}>Köp</button>
+        </div>
+      </div>`;
+    }
+
+    this.shopContentEl.innerHTML = html;
+    this.shopContentEl.querySelectorAll('button[data-buy]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.buy;
+        const qtyInput = this.shopContentEl.querySelector(`input[data-buy-qty="${key}"]`);
+        const qty = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+        this._buy(key, qty);
+        this.renderShop();
+      });
+    });
+  }
+
+  _buy(key, qty) {
+    const inv = this.game.inventory;
+    const item = BUYABLES[key];
+    const totalCost = item.price * qty;
+    if (inv.gold < totalCost) {
+      this.showToast('💸 Inte tillräckligt med guld!');
+      return;
+    }
+    // Kapacitet-check (utom för pilar)
+    if (key !== 'arrows') {
+      if (inv.total() + qty > inv.capacity) {
+        this.showToast('🎒 Ryggsäcken är inte stor nog!');
+        return;
+      }
+    }
+    inv.gold -= totalCost;
+    inv[key] += qty;
+    this.showToast(`Köpte ${qty}× ${item.label}`);
+  }
+
+  _renderUpgrade() {
     const inv = this.game.inventory;
     const upg = this.game.upgrades;
-    const prices = inv.getPrices();
+    let html = `<p style="opacity: 0.7; font-size: 13px; margin-bottom: 8px;">Förbättra dina verktyg och vapen vid städet.</p>`;
 
-    let html = '';
-
-    html += `<h3>Sälj resurser</h3>`;
-    html += `<div class="shop-item">
-      <div class="info">
-        <div>🪵 Trä: <b>${inv.wood}</b> × ${prices.wood} · 🫐 Bär: <b>${inv.berry}</b> × ${prices.berry}</div>
-        <div>🐟 Fisk: <b>${inv.fish}</b> × ${prices.fish} · 🟫 Skinn: <b>${inv.hide}</b> × ${prices.hide}</div>
-        <div>🥩 Kött: <b>${inv.meat}</b> × ${prices.meat} · 🍖 Tillagat: <b>${inv.cookedMeat}</b> × ${prices.cookedMeat}</div>
-        <div class="sub">Totalt värde: <b style="color: gold;">${inv.getSellValue()} 💰</b></div>
-      </div>
-      <button id="sell-all-btn" ${inv.total() === 0 ? 'disabled' : ''}>Sälj allt</button>
-    </div>`;
-
-    html += `<h3>Uppgraderingar</h3>`;
     for (const key of upg.getAllKeys()) {
       const def = upg.getDefinition(key);
       const level = upg.getLevel(key);
@@ -174,22 +286,11 @@ export class UI {
     }
 
     this.shopContentEl.innerHTML = html;
-
-    const sellBtn = document.getElementById('sell-all-btn');
-    if (sellBtn) {
-      sellBtn.addEventListener('click', () => {
-        const earned = inv.sellAll();
-        this.showToast(`+${earned} 💰`);
-        this.renderShop();
-      });
-    }
-
     this.shopContentEl.querySelectorAll('button[data-upgrade]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const key = btn.dataset.upgrade;
         if (upg.buy(key, inv)) {
           this.showToast(`${upg.getDefinition(key).label} ${upg.getLevel(key)}!`);
-          // Om man precis köpte ett vapen, välj det
           if ((key === 'sword' || key === 'bow') && upg.getLevel(key) === 1) {
             this.game.controls.selectedWeapon = key;
           }
@@ -197,5 +298,68 @@ export class UI {
         }
       });
     });
+  }
+
+  _renderCraft() {
+    const inv = this.game.inventory;
+    let html = `<p style="opacity: 0.7; font-size: 13px; margin-bottom: 8px;">Tillverka saker från råmaterial. Smart om du har resurserna.</p>`;
+
+    for (const key of Object.keys(RECIPES)) {
+      const recipe = RECIPES[key];
+      // Format inputs/outputs
+      const inputStr = Object.entries(recipe.input)
+        .map(([t, n]) => `${n}× ${ITEM_LABELS[t] || t}`)
+        .join(', ');
+      const outputStr = Object.entries(recipe.output)
+        .map(([t, n]) => `${n}× ${ITEM_LABELS[t] || t}`)
+        .join(', ');
+
+      const canCraft = Object.entries(recipe.input).every(([t, n]) => inv[t] >= n);
+
+      html += `<div class="shop-item">
+        <div class="info">
+          <div><b>${recipe.label}</b></div>
+          <div class="sub">${recipe.description}</div>
+          <div class="sub">Behöver: ${inputStr} → Får: ${outputStr}</div>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <input class="qty-input" type="number" min="1" max="99" value="1" data-craft-qty="${key}" />
+          <button data-craft="${key}" ${canCraft ? '' : 'disabled'}>Tillverka</button>
+        </div>
+      </div>`;
+    }
+
+    this.shopContentEl.innerHTML = html;
+    this.shopContentEl.querySelectorAll('button[data-craft]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.craft;
+        const qtyInput = this.shopContentEl.querySelector(`input[data-craft-qty="${key}"]`);
+        const qty = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+        this._craft(key, qty);
+        this.renderShop();
+      });
+    });
+  }
+
+  _craft(key, qty) {
+    const inv = this.game.inventory;
+    const recipe = RECIPES[key];
+
+    // Kolla att vi har material för alla qty
+    for (const [type, n] of Object.entries(recipe.input)) {
+      if (inv[type] < n * qty) {
+        this.showToast(`Behöver ${n * qty}× ${ITEM_LABELS[type] || type}`);
+        return;
+      }
+    }
+    // Konsumera input
+    for (const [type, n] of Object.entries(recipe.input)) {
+      inv[type] -= n * qty;
+    }
+    // Lägg till output
+    for (const [type, n] of Object.entries(recipe.output)) {
+      inv[type] += n * qty;
+    }
+    this.showToast(`Tillverkade ${qty}× ${recipe.label}!`);
   }
 }

@@ -10,6 +10,7 @@ export class Save {
         hide: inventory.hide,
         meat: inventory.meat,
         cookedMeat: inventory.cookedMeat,
+        arrows: inventory.arrows,
         gold: inventory.gold,
         capacity: inventory.capacity,
       },

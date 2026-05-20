@@ -1,5 +1,9 @@
 import { PRICES } from './resources.js';
 
+// Mat ska inte säljas automatiskt (spelaren äter den för att läka)
+export const FOOD_TYPES = ['berry', 'meat', 'cookedMeat'];
+export const MATERIAL_TYPES = ['wood', 'hide', 'fish'];
+
 export class Inventory {
   constructor() {
     this.wood = 0;
@@ -8,6 +12,7 @@ export class Inventory {
     this.hide = 0;
     this.meat = 0;
     this.cookedMeat = 0;
+    this.arrows = 0; // pilar - räknas inte mot kapacitet
     this.gold = 0;
     this.capacity = 10;
   }
@@ -57,6 +62,31 @@ export class Inventory {
     this.hide = 0;
     this.meat = 0;
     this.cookedMeat = 0;
+    return gold;
+  }
+
+  // Sälj en specifik resurs - returnerar guld tjänat
+  sellOne(type, amount = 1) {
+    if (this[type] < amount) return 0;
+    const price = PRICES[type];
+    this[type] -= amount;
+    const earned = price * amount;
+    this.gold += earned;
+    return earned;
+  }
+
+  sellAllOf(type) {
+    const count = this[type];
+    if (count <= 0) return 0;
+    return this.sellOne(type, count);
+  }
+
+  // Sälj alla material (icke-mat)
+  sellAllMaterials() {
+    let gold = 0;
+    for (const t of MATERIAL_TYPES) {
+      gold += this.sellAllOf(t);
+    }
     return gold;
   }
 

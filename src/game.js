@@ -231,7 +231,24 @@ export class Game {
     const moveVec = this.controls.getMovementVector(this.cameraAngle);
 
     if (moveVec.lengthSq() > 0 && !this.ui.shopOpen) {
-      this.player.move(moveVec, speed * dt);
+      // Räkna ut tänkt ny position och låt världen lösa kollisioner
+      const distance = speed * dt;
+      const intended = this.player.position.clone();
+      intended.x += moveVec.x * distance;
+      intended.z += moveVec.z * distance;
+      const resolved = this.world.resolveCollision(this.player.position, intended);
+      // Beräkna faktisk rörelseriktning för animationen
+      const dx = resolved.x - this.player.position.x;
+      const dz = resolved.z - this.player.position.z;
+      const actualDist = Math.sqrt(dx * dx + dz * dz);
+      if (actualDist > 0.001) {
+        const dir = new THREE.Vector3(dx / actualDist, 0, dz / actualDist);
+        this.player.position.x = resolved.x;
+        this.player.position.z = resolved.z;
+        this.player.move(dir, actualDist);
+      } else {
+        this.player.idle(dt);
+      }
       if (this.interactingWith) this._cancelInteraction();
     } else {
       this.player.idle(dt);
@@ -276,12 +293,25 @@ export class Game {
     );
     this.camera.lookAt(px, 1.2 + this.player.position.y * 0.3, pz);
 
-    // Skördning av träd/bär/fisk/eld
+    // Skördning av träd/bär/fisk/eld + NPC-interaktion
     const nearest = this.world.getNearestInteractable(this.player.position, INTERACT_RANGE);
+
+    // Konsumera E-tryck (en gång per nedtryckning) - används för köpman
+    const interactJustPressed = this.controls.consumeInteractPress();
+    if (
+      !this.ui.shopOpen &&
+      nearest &&
+      nearest.actionType === 'trade' &&
+      interactJustPressed
+    ) {
+      this.ui.openShop();
+    }
+
     if (
       !this.ui.shopOpen &&
       this.controls.isInteractPressed() &&
       nearest &&
+      nearest.actionType !== 'trade' &&
       nearest.canHarvest(this.upgrades, this.inventory)
     ) {
       if (this.interactingWith !== nearest) {
@@ -401,11 +431,20 @@ export class Game {
     } else if (weapon === 'bow') {
       const dmg = this.upgrades.getBowDamage();
       if (dmg <= 0) return;
+      if (this.inventory.arrows <= 0) {
+        this.ui.showToast('🏹 Slut på pilar! Tillverka hos köpmannen');
+        return;
+      }
       const range = this.upgrades.getBowRange();
       const lockedTarget = findNearestTarget(this.player.position, this.creatures, range);
+      if (!lockedTarget) {
+        this.ui.showToast('🏹 Inget djur inom räckvidd');
+        return;
+      }
+      // Konsumera pil och skjut
+      this.inventory.arrows -= 1;
       this.player.startSwing(() => {
-        // Vid release-momentet: skapa pilen och skjut mot målet
-        const target = lockedTarget && lockedTarget.alive
+        const target = lockedTarget.alive
           ? lockedTarget
           : findNearestTarget(this.player.position, this.creatures, range);
         if (target) {
@@ -419,9 +458,6 @@ export class Game {
           this._triggerShake(0.1, 0.1);
         }
       });
-      if (!lockedTarget) {
-        this.ui.showToast('🏹 Inget djur inom räckvidd');
-      }
     }
   }
 
