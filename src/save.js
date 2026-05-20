@@ -1,17 +1,25 @@
-const KEY = 'skogens-skordare-v1';
+const KEY = 'skogens-skordare-v2';
 
 export class Save {
-  save(inventory, upgrades, player) {
+  save(inventory, upgrades, player, controls) {
     const data = {
       inventory: {
         wood: inventory.wood,
         berry: inventory.berry,
         fish: inventory.fish,
+        hide: inventory.hide,
+        meat: inventory.meat,
+        cookedMeat: inventory.cookedMeat,
         gold: inventory.gold,
         capacity: inventory.capacity,
       },
       upgrades: { ...upgrades.levels },
-      player: { x: player.position.x, z: player.position.z },
+      player: {
+        x: player.position.x,
+        z: player.position.z,
+        hp: player.hp,
+      },
+      selectedWeapon: controls ? controls.selectedWeapon : null,
     };
     try {
       localStorage.setItem(KEY, JSON.stringify(data));
@@ -20,7 +28,7 @@ export class Save {
     }
   }
 
-  load(inventory, upgrades, player) {
+  load(inventory, upgrades, player, controls) {
     try {
       const raw = localStorage.getItem(KEY);
       if (!raw) return false;
@@ -31,7 +39,11 @@ export class Save {
       if (data.player) {
         player.position.x = data.player.x;
         player.position.z = data.player.z;
+        if (typeof data.player.hp === 'number') player.hp = data.player.hp;
         player.group.position.copy(player.position);
+      }
+      if (data.selectedWeapon && controls) {
+        controls.selectedWeapon = data.selectedWeapon;
       }
       return true;
     } catch (e) {

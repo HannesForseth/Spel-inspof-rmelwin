@@ -29,6 +29,21 @@ const UPGRADES = {
     cost: (level) => 15 * Math.pow(2, level),
     speed: (level) => 5 + level * 1.2,
   },
+  sword: {
+    label: '⚔️ Svärd',
+    description: 'Närstrid - mer skada',
+    maxLevel: 5,
+    cost: (level) => (level === 0 ? 40 : 40 * Math.pow(2, level)),
+    damage: (level) => (level === 0 ? 0 : level + 1),
+  },
+  bow: {
+    label: '🏹 Pilbåge',
+    description: 'Långdistans med autosikte',
+    maxLevel: 5,
+    cost: (level) => (level === 0 ? 80 : 80 * Math.pow(2, level)),
+    damage: (level) => (level === 0 ? 0 : level + 2),
+    range: (level) => 12 + level * 2,
+  },
 };
 
 export class Upgrades {
@@ -38,6 +53,8 @@ export class Upgrades {
       rod: 0,
       backpack: 0,
       boots: 0,
+      sword: 0,
+      bow: 0,
     };
   }
 
@@ -51,6 +68,10 @@ export class Upgrades {
 
   getLevel(key) {
     return this.levels[key];
+  }
+
+  hasWeapon(key) {
+    return this.levels[key] > 0;
   }
 
   isMaxed(key) {
@@ -86,5 +107,17 @@ export class Upgrades {
 
   getCapacity() {
     return UPGRADES.backpack.capacity(this.levels.backpack);
+  }
+
+  getSwordDamage() {
+    return UPGRADES.sword.damage(this.levels.sword);
+  }
+
+  getBowDamage() {
+    return UPGRADES.bow.damage(this.levels.bow);
+  }
+
+  getBowRange() {
+    return UPGRADES.bow.range(this.levels.bow);
   }
 }

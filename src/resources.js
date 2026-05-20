@@ -5,6 +5,9 @@ export const PRICES = {
   wood: 2,
   berry: 1,
   fish: 5,
+  hide: 8,
+  meat: 6,
+  cookedMeat: 12,
 };
 
 // Bas-klass: gemensam logik för allt man kan interagera med
@@ -165,6 +168,109 @@ export class Bush extends Harvestable {
     this.active = true;
     this.berries.forEach((b) => (b.visible = true));
     this.bush.material.color.setHex(0x388e3c);
+  }
+}
+
+// Lägereld - laga rått kött till tillagat kött
+export class Campfire {
+  constructor(scene, position) {
+    this.scene = scene;
+    this.position = position.clone();
+    this.label = 'lägerelden';
+    this.actionLabel = 'Laga mat';
+    this.actionType = 'cook';
+    this.flickerTime = 0;
+    this.active = true;
+
+    this.group = new THREE.Group();
+
+    // Stenring
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x616161, roughness: 0.9 });
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const stone = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.22, 0),
+        stoneMat,
+      );
+      stone.position.set(Math.cos(angle) * 0.7, 0.15, Math.sin(angle) * 0.7);
+      stone.rotation.y = Math.random() * Math.PI;
+      stone.castShadow = true;
+      this.group.add(stone);
+    }
+
+    // Korsade stockar
+    const logMat = new THREE.MeshStandardMaterial({ color: 0x5d3a1a });
+    const log1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.0, 6), logMat);
+    log1.rotation.z = Math.PI / 2;
+    log1.position.y = 0.1;
+    this.group.add(log1);
+    const log2 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.0, 6), logMat);
+    log2.rotation.x = Math.PI / 2;
+    log2.position.y = 0.1;
+    this.group.add(log2);
+
+    // Lågor - två koner som flimrar
+    this.flame1 = new THREE.Mesh(
+      new THREE.ConeGeometry(0.35, 0.9, 6),
+      new THREE.MeshStandardMaterial({
+        color: 0xff5722,
+        emissive: 0xff5722,
+        emissiveIntensity: 0.9,
+        transparent: true,
+        opacity: 0.95,
+      }),
+    );
+    this.flame1.position.y = 0.55;
+    this.group.add(this.flame1);
+
+    this.flame2 = new THREE.Mesh(
+      new THREE.ConeGeometry(0.22, 0.6, 6),
+      new THREE.MeshStandardMaterial({
+        color: 0xffeb3b,
+        emissive: 0xffeb3b,
+        emissiveIntensity: 1,
+        transparent: true,
+        opacity: 0.95,
+      }),
+    );
+    this.flame2.position.y = 0.7;
+    this.group.add(this.flame2);
+
+    // Ljus från elden (ger fin atmosfär på natten)
+    this.light = new THREE.PointLight(0xff8a3d, 2.5, 14, 2);
+    this.light.position.y = 1.5;
+    this.group.add(this.light);
+
+    this.group.position.copy(position);
+    scene.add(this.group);
+  }
+
+  isActive() {
+    return true;
+  }
+
+  canHarvest(_upgrades, inventory) {
+    return inventory.meat > 0;
+  }
+
+  getHarvestDuration() {
+    return 1.5;
+  }
+
+  harvest() {
+    return { type: 'cook', amount: 1 };
+  }
+
+  update(dt) {
+    this.flickerTime += dt * 8;
+    const flicker = 0.85 + Math.sin(this.flickerTime) * 0.15;
+    this.flame1.scale.set(flicker, 0.85 + Math.cos(this.flickerTime * 1.3) * 0.15, flicker);
+    this.flame2.scale.set(
+      0.9 + Math.sin(this.flickerTime * 1.7) * 0.1,
+      0.9 + Math.cos(this.flickerTime * 2.1) * 0.1,
+      0.9 + Math.sin(this.flickerTime * 1.7) * 0.1,
+    );
+    this.light.intensity = 2.2 + Math.sin(this.flickerTime * 1.5) * 0.4;
   }
 }
 

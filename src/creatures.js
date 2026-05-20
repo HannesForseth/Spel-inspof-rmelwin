@@ -1,0 +1,576 @@
+import * as THREE from 'three';
+
+// Bas-klass för alla djur. Hanterar AI-state, rörelse, skada och visualisering.
+class Creature {
+  constructor(scene, position) {
+    this.scene = scene;
+    this.position = position.clone();
+    this.velocity = new THREE.Vector3();
+    this.alive = true;
+    this.respawnTime = 30; // sekunder innan ny spawnar
+    this.respawnTimer = 0;
+    this.facing = Math.random() * Math.PI * 2;
+    this.wanderTimer = 0;
+    this.wanderTarget = new THREE.Vector3();
+    this.state = 'idle'; // 'idle' | 'flee' | 'chase' | 'attack'
+    this.attackCooldown = 0;
+    this.homePosition = position.clone();
+    this.maxRoam = 12; // hur långt från hemmet djuret rör sig
+  }
+
+  isActive() {
+    return this.alive;
+  }
+
+  takeDamage(amount, fromPos) {
+    if (!this.alive) return false;
+    this.hp -= amount;
+    // Flammigt hopp åt sidan
+    if (fromPos) {
+      const dx = this.position.x - fromPos.x;
+      const dz = this.position.z - fromPos.z;
+      const len = Math.sqrt(dx * dx + dz * dz) || 1;
+      this.velocity.x = (dx / len) * 6;
+      this.velocity.z = (dz / len) * 6;
+    }
+    if (this.hp <= 0) {
+      this.die();
+      return true;
+    }
+    return false;
+  }
+
+  die() {
+    this.alive = false;
+    this.respawnTimer = 0;
+    this.group.visible = false;
+  }
+
+  respawn() {
+    this.alive = true;
+    this.hp = this.maxHp;
+    this._lootGiven = false;
+    const angle = Math.random() * Math.PI * 2;
+    const r = Math.random() * this.maxRoam;
+    this.position.x = this.homePosition.x + Math.cos(angle) * r;
+    this.position.z = this.homePosition.z + Math.sin(angle) * r;
+    this.group.position.copy(this.position);
+    this.group.visible = true;
+    this.state = 'idle';
+  }
+
+  // Returnerar belöning som droppar vid död
+  getLoot() {
+    return [];
+  }
+
+  update(dt, playerPos) {
+    if (!this.alive) {
+      this.respawnTimer += dt;
+      if (this.respawnTimer >= this.respawnTime) this.respawn();
+      return;
+    }
+
+    // Decay velocity (bromsa över tid)
+    this.velocity.x *= 0.92;
+    this.velocity.z *= 0.92;
+
+    // Tillämpa hastighet
+    this.position.x += this.velocity.x * dt;
+    this.position.z += this.velocity.z * dt;
+
+    // AI-tillstånd (implementeras av subklasser via _decide)
+    this._decide(dt, playerPos);
+
+    this.group.position.copy(this.position);
+    if (Math.abs(this.velocity.x) > 0.1 || Math.abs(this.velocity.z) > 0.1) {
+      this.facing = Math.atan2(this.velocity.x, this.velocity.z);
+      this.group.rotation.y = this.facing;
+    }
+  }
+
+  _wanderTowards(target, speed, dt) {
+    const dx = target.x - this.position.x;
+    const dz = target.z - this.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < 0.5) return false;
+    this.velocity.x += (dx / dist) * speed * dt * 4;
+    this.velocity.z += (dz / dist) * speed * dt * 4;
+    const cap = speed;
+    const vlen = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+    if (vlen > cap) {
+      this.velocity.x = (this.velocity.x / vlen) * cap;
+      this.velocity.z = (this.velocity.z / vlen) * cap;
+    }
+    return true;
+  }
+}
+
+// Kanin: liten, snabb, springer iväg
+export class Rabbit extends Creature {
+  constructor(scene, position) {
+    super(scene, position);
+    this.maxHp = 1;
+    this.hp = 1;
+    this.label = 'kanin';
+    this.fleeSpeed = 7;
+    this.wanderSpeed = 1.5;
+    this.detectRange = 8;
+    this.maxRoam = 10;
+
+    this.group = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xfafafa });
+
+    // Kropp
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.7), bodyMat);
+    body.position.y = 0.3;
+    body.castShadow = true;
+    this.group.add(body);
+
+    // Huvud
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.3, 0.3), bodyMat);
+    head.position.set(0, 0.45, 0.45);
+    head.castShadow = true;
+    this.group.add(head);
+
+    // Öron
+    const earMat = new THREE.MeshStandardMaterial({ color: 0xf5cba7 });
+    const earGeo = new THREE.BoxGeometry(0.08, 0.3, 0.05);
+    const lEar = new THREE.Mesh(earGeo, earMat);
+    lEar.position.set(-0.1, 0.7, 0.4);
+    this.group.add(lEar);
+    const rEar = new THREE.Mesh(earGeo, earMat);
+    rEar.position.set(0.1, 0.7, 0.4);
+    this.group.add(rEar);
+
+    // Svans
+    const tail = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 6, 5),
+      new THREE.MeshStandardMaterial({ color: 0xffffff }),
+    );
+    tail.position.set(0, 0.35, -0.4);
+    this.group.add(tail);
+
+    this.group.position.copy(position);
+    scene.add(this.group);
+  }
+
+  _decide(dt, playerPos) {
+    const dx = playerPos.x - this.position.x;
+    const dz = playerPos.z - this.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    if (dist < this.detectRange) {
+      // Spring bort från spelaren
+      this.velocity.x -= (dx / dist) * this.fleeSpeed * dt * 6;
+      this.velocity.z -= (dz / dist) * this.fleeSpeed * dt * 6;
+      const v = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+      if (v > this.fleeSpeed) {
+        this.velocity.x = (this.velocity.x / v) * this.fleeSpeed;
+        this.velocity.z = (this.velocity.z / v) * this.fleeSpeed;
+      }
+    } else {
+      this.wanderTimer -= dt;
+      if (this.wanderTimer <= 0) {
+        this.wanderTimer = 2 + Math.random() * 3;
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * this.maxRoam;
+        this.wanderTarget.set(
+          this.homePosition.x + Math.cos(angle) * r,
+          0,
+          this.homePosition.z + Math.sin(angle) * r,
+        );
+      }
+      this._wanderTowards(this.wanderTarget, this.wanderSpeed, dt);
+    }
+  }
+
+  getLoot() {
+    return [{ type: 'hide', amount: 1 }];
+  }
+}
+
+// Hjort: större, snabbare, droppar mer
+export class Deer extends Creature {
+  constructor(scene, position) {
+    super(scene, position);
+    this.maxHp = 3;
+    this.hp = 3;
+    this.label = 'hjort';
+    this.fleeSpeed = 8;
+    this.wanderSpeed = 2;
+    this.detectRange = 10;
+    this.maxRoam = 18;
+
+    this.group = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x8d5524 });
+
+    // Kropp
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 1.4), bodyMat);
+    body.position.y = 1.0;
+    body.castShadow = true;
+    this.group.add(body);
+
+    // Hals
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.4), bodyMat);
+    neck.position.set(0, 1.4, 0.7);
+    neck.rotation.x = -0.4;
+    neck.castShadow = true;
+    this.group.add(neck);
+
+    // Huvud
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.7), bodyMat);
+    head.position.set(0, 1.75, 0.95);
+    head.castShadow = true;
+    this.group.add(head);
+
+    // Horn
+    const hornMat = new THREE.MeshStandardMaterial({ color: 0x5d4037 });
+    for (const sign of [-1, 1]) {
+      const horn = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.4, 5), hornMat);
+      horn.position.set(sign * 0.13, 2.1, 0.85);
+      horn.rotation.z = sign * 0.4;
+      this.group.add(horn);
+      const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.25, 5), hornMat);
+      branch.position.set(sign * 0.25, 2.2, 0.85);
+      branch.rotation.z = sign * 0.9;
+      this.group.add(branch);
+    }
+
+    // Ben
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x5d3a1a });
+    const legGeo = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+    for (const [x, z] of [[-0.25, 0.5], [0.25, 0.5], [-0.25, -0.5], [0.25, -0.5]]) {
+      const leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(x, 0.3, z);
+      leg.castShadow = true;
+      this.group.add(leg);
+    }
+
+    this.group.position.copy(position);
+    scene.add(this.group);
+  }
+
+  _decide(dt, playerPos) {
+    const dx = playerPos.x - this.position.x;
+    const dz = playerPos.z - this.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    if (dist < this.detectRange) {
+      this.velocity.x -= (dx / dist) * this.fleeSpeed * dt * 6;
+      this.velocity.z -= (dz / dist) * this.fleeSpeed * dt * 6;
+      const v = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+      if (v > this.fleeSpeed) {
+        this.velocity.x = (this.velocity.x / v) * this.fleeSpeed;
+        this.velocity.z = (this.velocity.z / v) * this.fleeSpeed;
+      }
+    } else {
+      this.wanderTimer -= dt;
+      if (this.wanderTimer <= 0) {
+        this.wanderTimer = 3 + Math.random() * 4;
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * this.maxRoam;
+        this.wanderTarget.set(
+          this.homePosition.x + Math.cos(angle) * r,
+          0,
+          this.homePosition.z + Math.sin(angle) * r,
+        );
+      }
+      this._wanderTowards(this.wanderTarget, this.wanderSpeed, dt);
+    }
+  }
+
+  getLoot() {
+    return [
+      { type: 'hide', amount: 2 },
+      { type: 'meat', amount: 1 },
+    ];
+  }
+}
+
+// Björn: aggressiv, jagar och attackerar spelaren
+export class Bear extends Creature {
+  constructor(scene, position) {
+    super(scene, position);
+    this.maxHp = 12;
+    this.hp = 12;
+    this.label = 'björnen';
+    this.chaseSpeed = 4;
+    this.detectRange = 14;
+    this.attackRange = 2.5;
+    this.attackDamage = 18;
+    this.attackInterval = 1.5;
+    this.respawnTime = 120;
+    this.maxRoam = 6;
+
+    this.group = new THREE.Group();
+    const furMat = new THREE.MeshStandardMaterial({ color: 0x4e2a16 });
+
+    // Kropp
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 2.0), furMat);
+    body.position.y = 1.4;
+    body.castShadow = true;
+    this.group.add(body);
+
+    // Huvud
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), furMat);
+    head.position.set(0, 1.9, 1.15);
+    head.castShadow = true;
+    this.group.add(head);
+
+    // Nos
+    const snout = new THREE.Mesh(
+      new THREE.BoxGeometry(0.45, 0.4, 0.45),
+      new THREE.MeshStandardMaterial({ color: 0x6d4226 }),
+    );
+    snout.position.set(0, 1.75, 1.55);
+    this.group.add(snout);
+
+    // Öron
+    const earGeo = new THREE.BoxGeometry(0.2, 0.2, 0.15);
+    for (const sign of [-1, 1]) {
+      const ear = new THREE.Mesh(earGeo, furMat);
+      ear.position.set(sign * 0.3, 2.3, 1.0);
+      this.group.add(ear);
+    }
+
+    // Ögon
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0xff5722 });
+    const le = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.02), eyeMat);
+    le.position.set(-0.18, 2.0, 1.6);
+    this.group.add(le);
+    const re = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.02), eyeMat);
+    re.position.set(0.18, 2.0, 1.6);
+    this.group.add(re);
+
+    // Ben
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x3e1f10 });
+    const legGeo = new THREE.BoxGeometry(0.35, 0.85, 0.35);
+    for (const [x, z] of [[-0.5, 0.7], [0.5, 0.7], [-0.5, -0.7], [0.5, -0.7]]) {
+      const leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(x, 0.4, z);
+      leg.castShadow = true;
+      this.group.add(leg);
+    }
+
+    this.group.position.copy(position);
+    scene.add(this.group);
+  }
+
+  _decide(dt, playerPos) {
+    const dx = playerPos.x - this.position.x;
+    const dz = playerPos.z - this.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+
+    if (dist < this.detectRange) {
+      // Jaga spelaren
+      this.state = 'chase';
+      this.velocity.x += (dx / dist) * this.chaseSpeed * dt * 6;
+      this.velocity.z += (dz / dist) * this.chaseSpeed * dt * 6;
+      const v = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+      if (v > this.chaseSpeed) {
+        this.velocity.x = (this.velocity.x / v) * this.chaseSpeed;
+        this.velocity.z = (this.velocity.z / v) * this.chaseSpeed;
+      }
+    } else {
+      this.state = 'idle';
+      this.wanderTimer -= dt;
+      if (this.wanderTimer <= 0) {
+        this.wanderTimer = 4 + Math.random() * 4;
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * this.maxRoam;
+        this.wanderTarget.set(
+          this.homePosition.x + Math.cos(angle) * r,
+          0,
+          this.homePosition.z + Math.sin(angle) * r,
+        );
+      }
+      this._wanderTowards(this.wanderTarget, 1.2, dt);
+    }
+  }
+
+  // Returnerar true om björnen attackerade just nu (för att applicera skada)
+  tryAttack(playerPos) {
+    if (this.attackCooldown > 0) return false;
+    const dx = playerPos.x - this.position.x;
+    const dz = playerPos.z - this.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < this.attackRange) {
+      this.attackCooldown = this.attackInterval;
+      return true;
+    }
+    return false;
+  }
+
+  getLoot() {
+    return [
+      { type: 'hide', amount: 5 },
+      { type: 'meat', amount: 3 },
+      { type: 'gold', amount: 100 },
+    ];
+  }
+}
+
+// Varg: spawnar bara på natten, jagar spelaren, kan inte gå in i lägret
+export class Wolf extends Creature {
+  constructor(scene, position, campCenter, campRadius) {
+    super(scene, position);
+    this.maxHp = 4;
+    this.hp = 4;
+    this.label = 'vargen';
+    this.chaseSpeed = 5;
+    this.detectRange = 22;
+    this.attackRange = 1.8;
+    this.attackDamage = 10;
+    this.attackInterval = 1.0;
+    this.respawnTime = 0; // hanteras av spawner istället
+    this.campCenter = campCenter;
+    this.campRadius = campRadius;
+
+    this.group = new THREE.Group();
+    const furMat = new THREE.MeshStandardMaterial({ color: 0x424242 });
+    const bellyMat = new THREE.MeshStandardMaterial({ color: 0x6d6d6d });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 1.2), furMat);
+    body.position.y = 0.7;
+    body.castShadow = true;
+    this.group.add(body);
+
+    const belly = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 1.0), bellyMat);
+    belly.position.y = 0.5;
+    this.group.add(belly);
+
+    // Hals + huvud
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), furMat);
+    neck.position.set(0, 0.85, 0.6);
+    this.group.add(neck);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.55), furMat);
+    head.position.set(0, 0.95, 0.95);
+    head.castShadow = true;
+    this.group.add(head);
+
+    // Nos
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, 0.25), bellyMat);
+    snout.position.set(0, 0.85, 1.25);
+    this.group.add(snout);
+
+    // Öron
+    for (const sign of [-1, 1]) {
+      const ear = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.2, 4), furMat);
+      ear.position.set(sign * 0.13, 1.22, 0.85);
+      this.group.add(ear);
+    }
+
+    // Lysande gula ögon (skrämmande på natten)
+    const eyeMat = new THREE.MeshStandardMaterial({
+      color: 0xfff176,
+      emissive: 0xfff176,
+      emissiveIntensity: 0.8,
+    });
+    const le = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.02), eyeMat);
+    le.position.set(-0.1, 1.0, 1.21);
+    this.group.add(le);
+    const re = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.02), eyeMat);
+    re.position.set(0.1, 1.0, 1.21);
+    this.group.add(re);
+
+    // Ben
+    const legGeo = new THREE.BoxGeometry(0.12, 0.5, 0.12);
+    for (const [x, z] of [[-0.18, 0.4], [0.18, 0.4], [-0.18, -0.4], [0.18, -0.4]]) {
+      const leg = new THREE.Mesh(legGeo, furMat);
+      leg.position.set(x, 0.25, z);
+      leg.castShadow = true;
+      this.group.add(leg);
+    }
+
+    // Svans
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.5), furMat);
+    tail.position.set(0, 0.7, -0.7);
+    tail.rotation.x = -0.4;
+    this.group.add(tail);
+
+    this.group.position.copy(position);
+    scene.add(this.group);
+  }
+
+  _decide(dt, playerPos) {
+    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+
+    const dx = playerPos.x - this.position.x;
+    const dz = playerPos.z - this.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    // Är spelaren i lägret? Då gör vi inget (kan inte attackera där)
+    const playerInCamp = this._inCamp(playerPos.x, playerPos.z);
+    if (playerInCamp) {
+      // Cirkla utanför lägrets gräns
+      const camp = this.campCenter;
+      const angleFromCamp = Math.atan2(this.position.z - camp.z, this.position.x - camp.x);
+      const targetR = this.campRadius + 2;
+      const target = new THREE.Vector3(
+        camp.x + Math.cos(angleFromCamp + dt * 0.3) * targetR,
+        0,
+        camp.z + Math.sin(angleFromCamp + dt * 0.3) * targetR,
+      );
+      this._wanderTowards(target, 2.0, dt);
+      return;
+    }
+
+    if (dist < this.detectRange) {
+      // Jaga - men aldrig in i lägret
+      const targetX = this.position.x + (dx / dist) * 2;
+      const targetZ = this.position.z + (dz / dist) * 2;
+      if (this._inCamp(targetX, targetZ)) {
+        // Skulle gå in i lägret - stanna utanför
+        this.velocity.x *= 0.5;
+        this.velocity.z *= 0.5;
+        return;
+      }
+      this.velocity.x += (dx / dist) * this.chaseSpeed * dt * 6;
+      this.velocity.z += (dz / dist) * this.chaseSpeed * dt * 6;
+      const v = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+      if (v > this.chaseSpeed) {
+        this.velocity.x = (this.velocity.x / v) * this.chaseSpeed;
+        this.velocity.z = (this.velocity.z / v) * this.chaseSpeed;
+      }
+    }
+
+    // Säkerhetsnät: om vargen råkar vara i lägret, knuffa ut
+    if (this._inCamp(this.position.x, this.position.z)) {
+      const camp = this.campCenter;
+      const dx2 = this.position.x - camp.x;
+      const dz2 = this.position.z - camp.z;
+      const d = Math.sqrt(dx2 * dx2 + dz2 * dz2) || 1;
+      this.velocity.x = (dx2 / d) * 4;
+      this.velocity.z = (dz2 / d) * 4;
+    }
+  }
+
+  _inCamp(x, z) {
+    const dx = x - this.campCenter.x;
+    const dz = z - this.campCenter.z;
+    return Math.sqrt(dx * dx + dz * dz) < this.campRadius;
+  }
+
+  tryAttack(playerPos) {
+    if (this.attackCooldown > 0) return false;
+    if (this._inCamp(playerPos.x, playerPos.z)) return false;
+    const dx = playerPos.x - this.position.x;
+    const dz = playerPos.z - this.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < this.attackRange) {
+      this.attackCooldown = this.attackInterval;
+      return true;
+    }
+    return false;
+  }
+
+  getLoot() {
+    return [{ type: 'hide', amount: 1 }, { type: 'meat', amount: 1 }];
+  }
+
+  // Vargar respawnar inte automatiskt - hanteras av spawner i game.js
+  respawn() {}
+}

@@ -23,17 +23,29 @@ body {
   color: white;
 }
 
-#title {
+#topbar {
   position: absolute;
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+#title {
   background: rgba(0, 0, 0, 0.5);
   padding: 8px 18px;
   border-radius: 8px;
   font-weight: 700;
   font-size: 18px;
-  letter-spacing: 0.5px;
+}
+
+#time-label {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 16px;
 }
 
 #inventory {
@@ -43,9 +55,9 @@ body {
   background: rgba(0, 0, 0, 0.55);
   padding: 12px 16px;
   border-radius: 10px;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.7;
-  min-width: 150px;
+  min-width: 160px;
 }
 
 .resource {
@@ -70,6 +82,73 @@ body {
   padding-top: 6px;
 }
 
+#hp-bar-container {
+  position: absolute;
+  bottom: 70px;
+  left: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 8px 12px;
+  border-radius: 10px;
+  min-width: 220px;
+}
+
+#hp-label {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+#hp-bar {
+  width: 100%;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+#hp-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #e53935, #ef5350);
+  transition: width 0.2s;
+}
+
+#weapon-hud {
+  position: absolute;
+  bottom: 70px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.weapon-slot {
+  background: rgba(0, 0, 0, 0.55);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 22px;
+  border: 2px solid transparent;
+  position: relative;
+  opacity: 0.5;
+}
+
+.weapon-slot.owned {
+  opacity: 1;
+}
+
+.weapon-slot.active {
+  border-color: #ffeb3b;
+  background: rgba(60, 60, 0, 0.6);
+}
+
+.weapon-slot .key {
+  font-size: 11px;
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
 #controls-hint {
   position: absolute;
   bottom: 16px;
@@ -78,13 +157,13 @@ body {
   background: rgba(0, 0, 0, 0.55);
   padding: 8px 14px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
 #interact-prompt {
   position: absolute;
-  bottom: 110px;
+  bottom: 130px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.8);
@@ -102,7 +181,7 @@ body {
 
 #progress-bar {
   position: absolute;
-  bottom: 80px;
+  bottom: 100px;
   left: 50%;
   transform: translateX(-50%);
   width: 220px;
@@ -138,12 +217,10 @@ body {
   cursor: pointer;
   pointer-events: auto;
   font-family: inherit;
-  transition: transform 0.1s, background 0.1s;
 }
 
 #shop-button:hover {
   background: rgba(0, 0, 0, 0.8);
-  transform: scale(1.04);
 }
 
 #shop {
@@ -155,7 +232,7 @@ body {
   border: 2px solid rgba(255, 255, 255, 0.1);
   padding: 24px 28px;
   border-radius: 14px;
-  width: min(560px, 92vw);
+  width: min(580px, 92vw);
   max-height: 86vh;
   overflow-y: auto;
   pointer-events: auto;
@@ -209,12 +286,10 @@ body {
   font-family: inherit;
   font-weight: 600;
   white-space: nowrap;
-  transition: background 0.1s, transform 0.1s;
 }
 
 .shop-item button:hover:not(:disabled) {
   background: #66bb6a;
-  transform: scale(1.04);
 }
 
 .shop-item button:disabled {
@@ -248,7 +323,7 @@ body {
 
 #toast {
   position: absolute;
-  top: 70px;
+  top: 90px;
   left: 50%;
   transform: translateX(-50%) translateY(-10px);
   background: rgba(76, 175, 80, 0.95);
@@ -259,6 +334,7 @@ body {
   opacity: 0;
   transition: opacity 0.25s, transform 0.25s;
   pointer-events: none;
+  z-index: 10;
 }
 
 #toast.visible {

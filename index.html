@@ -10,22 +10,37 @@
   <div id="game-container"></div>
 
   <div id="ui">
-    <div id="title">🌲 Skogens Skördare</div>
+    <div id="topbar">
+      <div id="title">🌲 Skogens Skördare</div>
+      <div id="time-label">☀️ Dag</div>
+    </div>
 
     <div id="inventory">
       <div class="resource">🪵 Trä <span id="wood-count">0</span></div>
       <div class="resource">🫐 Bär <span id="berry-count">0</span></div>
       <div class="resource">🐟 Fisk <span id="fish-count">0</span></div>
+      <div class="resource">🟫 Skinn <span id="hide-count">0</span></div>
+      <div class="resource">🥩 Kött <span id="meat-count">0</span></div>
+      <div class="resource">🍖 Tillagat <span id="cooked-count">0</span></div>
       <div class="resource backpack">🎒 <span id="total-count">0</span>/<span id="capacity">10</span></div>
       <div class="resource gold">💰 <span id="gold-count">0</span></div>
     </div>
 
+    <div id="hp-bar-container">
+      <div id="hp-label">❤️ <span id="hp-text">100/100</span></div>
+      <div id="hp-bar"><div id="hp-fill"></div></div>
+    </div>
+
+    <div id="weapon-hud">
+      <div class="weapon-slot" data-weapon="sword">⚔️ <span class="key">1</span></div>
+      <div class="weapon-slot" data-weapon="bow">🏹 <span class="key">2</span></div>
+    </div>
+
     <div id="controls-hint">
-      <b>WASD</b> rörelse · <b>Mus (håll)</b> rotera kamera · <b>E (håll)</b> samla · <b>B</b> butik
+      <b>WASD</b> rörelse · <b>Shift</b> spring · <b>Space</b> hopp · <b>E</b> samla · <b>F</b> attack · <b>1/2</b> vapen · <b>H</b> ät · <b>B</b> butik
     </div>
 
     <div id="interact-prompt"></div>
-
     <div id="progress-bar"><div id="progress-fill"></div></div>
 
     <button id="shop-button">🏪 Butik (B)</button>

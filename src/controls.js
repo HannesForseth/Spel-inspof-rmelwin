@@ -3,9 +3,26 @@ import * as THREE from 'three';
 export class Controls {
   constructor() {
     this.keys = new Set();
+    this.jumpQueued = false;
+    this.attackQueued = false;
+    this.eatQueued = false;
+    this.selectedWeapon = null; // 'sword' | 'bow' | null
 
     window.addEventListener('keydown', (e) => {
-      this.keys.add(e.key.toLowerCase());
+      const k = e.key.toLowerCase();
+      // Förhindra att mellanslag scrollar sidan
+      if (e.key === ' ') e.preventDefault();
+
+      // Engångsknappar (registreras vid tryck, inte hålls)
+      if (!this.keys.has(k)) {
+        if (e.key === ' ') this.jumpQueued = true;
+        if (k === 'f') this.attackQueued = true;
+        if (k === 'h') this.eatQueued = true;
+        if (k === '1') this.selectedWeapon = 'sword';
+        if (k === '2') this.selectedWeapon = 'bow';
+      }
+
+      this.keys.add(k);
     });
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.key.toLowerCase());
@@ -21,7 +38,34 @@ export class Controls {
     return this.isDown('e');
   }
 
-  // Returnerar en världsriktning (x, z) baserad på vart kameran tittar
+  isRunning() {
+    return this.isDown('shift');
+  }
+
+  consumeJump() {
+    if (this.jumpQueued) {
+      this.jumpQueued = false;
+      return true;
+    }
+    return false;
+  }
+
+  consumeAttack() {
+    if (this.attackQueued) {
+      this.attackQueued = false;
+      return true;
+    }
+    return false;
+  }
+
+  consumeEat() {
+    if (this.eatQueued) {
+      this.eatQueued = false;
+      return true;
+    }
+    return false;
+  }
+
   getMovementVector(cameraAngle) {
     let x = 0;
     let z = 0;
