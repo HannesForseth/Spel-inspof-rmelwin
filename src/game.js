@@ -66,6 +66,8 @@ export class Game {
     this.clock = new THREE.Clock();
     this.interactingWith = null;
     this.interactProgress = 0;
+    this.cameraShake = 0;
+    this.cameraShakeIntensity = 0;
 
     // Sätt aktivt vapen om man redan äger något
     if (this.upgrades.hasWeapon('sword')) this.controls.selectedWeapon = 'sword';
@@ -259,12 +261,17 @@ export class Game {
     }
     this.player.updateSwing(dt);
 
-    // Kameran följer spelaren
+    // Kameran följer spelaren (med ev. skak)
+    this.cameraShake = Math.max(0, this.cameraShake - dt);
+    const shakeAmt = this.cameraShake > 0 ? this.cameraShake / 0.25 * this.cameraShakeIntensity : 0;
+    const sx = (Math.random() - 0.5) * shakeAmt;
+    const sy = (Math.random() - 0.5) * shakeAmt;
+
     const px = this.player.position.x;
     const pz = this.player.position.z;
     this.camera.position.set(
-      px + Math.sin(this.cameraAngle) * this.cameraDistance,
-      this.cameraHeight + this.player.position.y * 0.3,
+      px + Math.sin(this.cameraAngle) * this.cameraDistance + sx,
+      this.cameraHeight + this.player.position.y * 0.3 + sy,
       pz + Math.cos(this.cameraAngle) * this.cameraDistance,
     );
     this.camera.lookAt(px, 1.2 + this.player.position.y * 0.3, pz);
@@ -287,8 +294,12 @@ export class Game {
       }
       const duration = nearest.getHarvestDuration(this.upgrades);
       this.interactProgress += dt / duration;
-      this.player.updateChop(dt);
+      if (nearest.actionType === 'chop') {
+        this.player.setChopProgress(this.interactProgress);
+      }
       if (this.interactProgress >= 1) {
+        // Liten kamera-knyck på huggar-impact
+        if (nearest.actionType === 'chop') this._triggerShake(0.15, 0.15);
         this._completeHarvest();
       }
     } else if (this.interactingWith && !this.controls.isInteractPressed()) {
@@ -305,6 +316,7 @@ export class Game {
         if (hit) {
           this.ui.showToast(`💢 ${c.label} attackerade dig! -${c.attackDamage} ❤️`);
           this.effects.push(new HitEffect(this.scene, this.player.position.clone().setY(1.5), 0xf44336));
+          this._triggerShake(0.45, 0.4);
         }
         if (!this.player.isAlive()) this._playerDied();
       }
@@ -367,55 +379,79 @@ export class Game {
       this.ui.showToast('⚠️ Köp ett vapen i butiken (B) först');
       return;
     }
+    if (this.player.swinging) return; // ingen spam av attacker
+    if (this.player.isChopping) return;
+
     if (weapon === 'sword') {
       const dmg = this.upgrades.getSwordDamage();
       if (dmg <= 0) return;
-      // Hitta djur framför spelaren inom svärdsräckvidd
-      const facing = this.player.facing;
-      const fx = Math.sin(facing);
-      const fz = Math.cos(facing);
-      let target = null;
-      let bestScore = -Infinity;
-      for (const c of this.creatures) {
-        if (!c.alive) continue;
-        const dx = c.position.x - this.player.position.x;
-        const dz = c.position.z - this.player.position.z;
-        const dist = Math.sqrt(dx * dx + dz * dz);
-        if (dist > SWORD_RANGE) continue;
-        // Punktprodukt: positiv = framför, negativ = bakom
-        const dot = (dx * fx + dz * fz) / (dist || 1);
-        if (dot < 0.3) continue; // bara inom ~70° framåt-kon
-        const score = dot - dist * 0.1;
-        if (score > bestScore) {
-          bestScore = score;
-          target = c;
+      // Vänd gubben mot kameran-riktningen man kollar
+      // Lås mål vid swing-start, men kontrollera räckvidd igen vid impact
+      const lockedTarget = this._findSwordTarget();
+      this.player.startSwing(() => {
+        // Vid impact-momentet: kolla räckvidd igen
+        const target = lockedTarget && lockedTarget.alive ? lockedTarget : this._findSwordTarget();
+        if (target) {
+          const killed = target.takeDamage(dmg, this.player.position);
+          this.effects.push(new HitEffect(this.scene, target.position.clone(), 0xff5722));
+          if (killed) this._onCreatureKilled(target);
+          this._triggerShake(0.25, 0.3);
         }
-      }
-      this.player.startSwing();
-      if (target) {
-        const killed = target.takeDamage(dmg, this.player.position);
-        this.effects.push(new HitEffect(this.scene, target.position.clone(), 0xff5722));
-        if (killed) this._onCreatureKilled(target);
-      }
+      });
     } else if (weapon === 'bow') {
       const dmg = this.upgrades.getBowDamage();
       if (dmg <= 0) return;
       const range = this.upgrades.getBowRange();
-      // Autosikte: skjut på närmaste djur inom räckvidd
-      const target = findNearestTarget(this.player.position, this.creatures, range);
-      this.player.startSwing();
-      if (target) {
-        const arrow = new Arrow(
-          this.scene,
-          this.player.position.clone().setY(1.5),
-          target,
-          dmg,
-        );
-        this.arrows.push(arrow);
-        // Kolla efter pilen träffar i nästa update
-      } else {
+      const lockedTarget = findNearestTarget(this.player.position, this.creatures, range);
+      this.player.startSwing(() => {
+        // Vid release-momentet: skapa pilen och skjut mot målet
+        const target = lockedTarget && lockedTarget.alive
+          ? lockedTarget
+          : findNearestTarget(this.player.position, this.creatures, range);
+        if (target) {
+          const arrow = new Arrow(
+            this.scene,
+            this.player.position.clone().setY(1.5),
+            target,
+            dmg,
+          );
+          this.arrows.push(arrow);
+          this._triggerShake(0.1, 0.1);
+        }
+      });
+      if (!lockedTarget) {
         this.ui.showToast('🏹 Inget djur inom räckvidd');
       }
+    }
+  }
+
+  _findSwordTarget() {
+    const facing = this.player.facing;
+    const fx = Math.sin(facing);
+    const fz = Math.cos(facing);
+    let target = null;
+    let bestScore = -Infinity;
+    for (const c of this.creatures) {
+      if (!c.alive) continue;
+      const dx = c.position.x - this.player.position.x;
+      const dz = c.position.z - this.player.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > SWORD_RANGE) continue;
+      const dot = (dx * fx + dz * fz) / (dist || 1);
+      if (dot < 0.3) continue;
+      const score = dot - dist * 0.1;
+      if (score > bestScore) {
+        bestScore = score;
+        target = c;
+      }
+    }
+    return target;
+  }
+
+  _triggerShake(duration, intensity) {
+    if (duration > this.cameraShake) {
+      this.cameraShake = duration;
+      this.cameraShakeIntensity = intensity;
     }
   }
 

@@ -15,72 +15,82 @@ const BOW_STRING = 0xfafafa;
 const GRAVITY = 22;
 const JUMP_VELOCITY = 8;
 
+// Hipp-höjd där överkroppen pivoterar - används för torso-lutning
+const TORSO_PIVOT_Y = 0.8;
+
 export class Player {
   constructor(scene) {
     this.scene = scene;
     this.position = new THREE.Vector3(0, 0, 0);
     this.facing = 0;
     this.walkTime = 0;
-    this.chopTime = 0;
     this.isChopping = false;
-    this.swingTime = 0; // för svärds-/pil-animation
+    this.chopProgress = 0;
+    this.swingTime = 0;
+    this.swingDuration = 0.5;
     this.swinging = false;
+    this.swingStruckCallback = null;
 
-    // Hälsa
     this.maxHp = 100;
     this.hp = 100;
     this.invulnTimer = 0;
+    this.flashTimer = 0;
 
-    // Hopp / fysik
     this.yVel = 0;
     this.onGround = true;
 
-    // Aktivt vapen ('sword' | 'bow' | null)
     this.activeWeapon = null;
 
     this.group = new THREE.Group();
 
-    // Kropp (grön tröja)
+    // Torso-pivot: allt ovanför höften lutar/vrider sig härifrån
+    this.torsoPivot = new THREE.Group();
+    this.torsoPivot.position.y = TORSO_PIVOT_Y;
+    this.group.add(this.torsoPivot);
+
+    // Kropp (grön tröja) - relativt torsoPivot
     const body = new THREE.Mesh(
       new THREE.BoxGeometry(0.8, 0.9, 0.45),
       new THREE.MeshStandardMaterial({ color: SHIRT }),
     );
-    body.position.y = 1.25;
+    body.position.y = 0.45;
     body.castShadow = true;
-    this.group.add(body);
+    this.bodyMesh = body;
+    this.torsoPivot.add(body);
 
     // Huvud
     const head = new THREE.Mesh(
       new THREE.BoxGeometry(0.6, 0.6, 0.6),
       new THREE.MeshStandardMaterial({ color: SKIN }),
     );
-    head.position.y = 2.0;
+    head.position.y = 1.2;
     head.castShadow = true;
-    this.group.add(head);
+    this.headMesh = head;
+    this.torsoPivot.add(head);
 
     // Hår
     const hair = new THREE.Mesh(
       new THREE.BoxGeometry(0.65, 0.18, 0.65),
       new THREE.MeshStandardMaterial({ color: HAIR }),
     );
-    hair.position.y = 2.36;
-    this.group.add(hair);
+    hair.position.y = 1.56;
+    this.torsoPivot.add(hair);
 
     // Ögon
     const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
     const le = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.02), eyeMat);
-    le.position.set(-0.13, 2.05, 0.31);
-    this.group.add(le);
+    le.position.set(-0.13, 1.25, 0.31);
+    this.torsoPivot.add(le);
     const re = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.02), eyeMat);
-    re.position.set(0.13, 2.05, 0.31);
-    this.group.add(re);
+    re.position.set(0.13, 1.25, 0.31);
+    this.torsoPivot.add(re);
 
-    // Armar (pivot vid axel, arm hänger ned i -y)
-    this.leftArmPivot = this._makeLimbPivot(-0.55, 1.65, 0.22, 0.9, 0.3, SKIN);
-    this.rightArmPivot = this._makeLimbPivot(0.55, 1.65, 0.22, 0.9, 0.3, SKIN);
-    this.group.add(this.leftArmPivot, this.rightArmPivot);
+    // Armar - pivot vid axel (relativt torso)
+    this.leftArmPivot = this._makeLimbPivot(-0.55, 0.85, 0.22, 0.9, 0.3, SKIN);
+    this.rightArmPivot = this._makeLimbPivot(0.55, 0.85, 0.22, 0.9, 0.3, SKIN);
+    this.torsoPivot.add(this.leftArmPivot, this.rightArmPivot);
 
-    // Verktyg/vapen i händer
+    // Verktyg/vapen
     this.axe = this._makeAxe();
     this.rightArmPivot.add(this.axe);
     this.axe.visible = false;
@@ -93,7 +103,12 @@ export class Player {
     this.leftArmPivot.add(this.bow);
     this.bow.visible = false;
 
-    // Ben (pivot vid höft)
+    // Pil i höger hand när man drar bågen
+    this.drawArrow = this._makeDrawArrow();
+    this.rightArmPivot.add(this.drawArrow);
+    this.drawArrow.visible = false;
+
+    // Ben - direkt under group (rör sig inte med torsoPivot)
     this.leftLegPivot = this._makeLimbPivot(-0.2, 0.8, 0.32, 0.85, 0.38, PANTS);
     this.rightLegPivot = this._makeLimbPivot(0.2, 0.8, 0.32, 0.85, 0.38, PANTS);
     this.group.add(this.leftLegPivot, this.rightLegPivot);
@@ -114,11 +129,8 @@ export class Player {
     return pivot;
   }
 
-  // Yxa: vertikalt skaft, huvud högst upp med eggen som pekar FRAMÅT (+z)
   _makeAxe() {
     const axe = new THREE.Group();
-
-    // Skaft (från grepp y=0 upp till y=0.75)
     const handle = new THREE.Mesh(
       new THREE.CylinderGeometry(0.05, 0.06, 0.75, 8),
       new THREE.MeshStandardMaterial({ color: AXE_HANDLE }),
@@ -126,8 +138,6 @@ export class Player {
     handle.position.y = 0.38;
     handle.castShadow = true;
     axe.add(handle);
-
-    // Huvud: tunn skiva som sticker framåt i z (rätt riktning för hugg)
     const head = new THREE.Mesh(
       new THREE.BoxGeometry(0.1, 0.28, 0.4),
       new THREE.MeshStandardMaterial({ color: AXE_HEAD, metalness: 0.6, roughness: 0.4 }),
@@ -135,43 +145,31 @@ export class Player {
     head.position.set(0, 0.7, 0.12);
     head.castShadow = true;
     axe.add(head);
-
-    // Lite av skaftet sticker upp genom huvudet
     const cap = new THREE.Mesh(
       new THREE.CylinderGeometry(0.06, 0.06, 0.12, 8),
       new THREE.MeshStandardMaterial({ color: AXE_HANDLE }),
     );
     cap.position.y = 0.78;
     axe.add(cap);
-
-    // Placera i höger hand (handen är i botten av armen, y=-0.85 i armens lokala system)
-    // Roterar lite framåt (+x) så det ser ut som ett vilo-grepp
     axe.position.set(0, -0.85, 0);
     axe.rotation.x = Math.PI / 8;
     return axe;
   }
 
-  // Svärd: vertikalt blad, parerstång + grepp
   _makeSword() {
     const sword = new THREE.Group();
-
-    // Grepp
     const grip = new THREE.Mesh(
       new THREE.CylinderGeometry(0.06, 0.06, 0.22, 8),
       new THREE.MeshStandardMaterial({ color: 0x3e2723 }),
     );
     grip.position.y = 0.11;
     sword.add(grip);
-
-    // Parerstång (kors)
     const guard = new THREE.Mesh(
       new THREE.BoxGeometry(0.4, 0.07, 0.12),
       new THREE.MeshStandardMaterial({ color: SWORD_GUARD, metalness: 0.7, roughness: 0.3 }),
     );
     guard.position.y = 0.26;
     sword.add(guard);
-
-    // Blad - smalt, framåtriktat
     const blade = new THREE.Mesh(
       new THREE.BoxGeometry(0.12, 0.9, 0.04),
       new THREE.MeshStandardMaterial({ color: SWORD_BLADE, metalness: 0.85, roughness: 0.15 }),
@@ -179,50 +177,61 @@ export class Player {
     blade.position.y = 0.76;
     blade.castShadow = true;
     sword.add(blade);
-
-    // Spets
     const tip = new THREE.Mesh(
       new THREE.ConeGeometry(0.085, 0.18, 4),
       new THREE.MeshStandardMaterial({ color: SWORD_BLADE, metalness: 0.85, roughness: 0.15 }),
     );
     tip.position.y = 1.3;
     sword.add(tip);
-
     sword.position.set(0, -0.85, 0);
     sword.rotation.x = Math.PI / 8;
     return sword;
   }
 
-  // Pilbåge: krökt båge + senstring
   _makeBow() {
     const bow = new THREE.Group();
-
     const woodMat = new THREE.MeshStandardMaterial({ color: BOW_WOOD });
-    // Båge i tre delar för en böjd form
     const top = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.55, 0.08), woodMat);
     top.position.set(0, 0.32, -0.05);
     top.rotation.x = -0.3;
     bow.add(top);
-
     const bottom = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.55, 0.08), woodMat);
     bottom.position.set(0, -0.32, -0.05);
     bottom.rotation.x = 0.3;
     bow.add(bottom);
-
     const middle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.1), woodMat);
     bow.add(middle);
 
-    // Sträng
-    const string = new THREE.Mesh(
+    // Sträng - sparas så vi kan dra ut den under skott
+    this.bowString = new THREE.Mesh(
       new THREE.CylinderGeometry(0.01, 0.01, 1.1, 4),
       new THREE.MeshStandardMaterial({ color: BOW_STRING }),
     );
-    string.position.z = 0.1;
-    bow.add(string);
+    this.bowString.position.z = 0.1;
+    bow.add(this.bowString);
 
     bow.position.set(0, -0.85, 0);
-    bow.rotation.z = Math.PI / 2; // horisontellt grepp
+    bow.rotation.z = Math.PI / 2;
     return bow;
+  }
+
+  _makeDrawArrow() {
+    const arrow = new THREE.Group();
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.7, 6),
+      new THREE.MeshStandardMaterial({ color: 0xa1887f }),
+    );
+    shaft.rotation.x = Math.PI / 2;
+    arrow.add(shaft);
+    const tip = new THREE.Mesh(
+      new THREE.ConeGeometry(0.04, 0.12, 6),
+      new THREE.MeshStandardMaterial({ color: 0xb0bec5, metalness: 0.7 }),
+    );
+    tip.rotation.x = Math.PI / 2;
+    tip.position.z = 0.42;
+    arrow.add(tip);
+    arrow.position.set(0, -0.85, 0);
+    return arrow;
   }
 
   setActiveWeapon(weapon) {
@@ -252,6 +261,8 @@ export class Player {
     if (!this.isChopping && !this.swinging) {
       this.leftArmPivot.rotation.x = -swing * 0.5;
       this.rightArmPivot.rotation.x = swing * 0.5;
+      // Lätt bobbing av torsen
+      this.torsoPivot.rotation.x = Math.abs(swing) * 0.05;
     }
   }
 
@@ -261,6 +272,8 @@ export class Player {
     if (!this.isChopping && !this.swinging) {
       this.leftArmPivot.rotation.x *= 0.85;
       this.rightArmPivot.rotation.x *= 0.85;
+      this.torsoPivot.rotation.x *= 0.85;
+      this.torsoPivot.rotation.z *= 0.85;
     }
   }
 
@@ -285,10 +298,17 @@ export class Player {
 
     if (this.invulnTimer > 0) {
       this.invulnTimer -= dt;
-      // blinka när skadad
       this.group.visible = Math.floor(this.invulnTimer * 12) % 2 === 0;
     } else {
       this.group.visible = true;
+    }
+
+    // Röd flash när skadad
+    if (this.flashTimer > 0) {
+      this.flashTimer -= dt;
+      const intensity = Math.max(0, this.flashTimer / 0.2);
+      this.bodyMesh.material.emissive.setRGB(intensity * 0.8, 0, 0);
+      this.headMesh.material.emissive.setRGB(intensity * 0.8, 0, 0);
     }
   }
 
@@ -297,60 +317,192 @@ export class Player {
     this.axe.visible = true;
     this.sword.visible = false;
     this.bow.visible = false;
-    this.chopTime = 0;
+    this.chopProgress = 0;
   }
 
   stopChop() {
     this.isChopping = false;
     this.axe.visible = false;
     this.rightArmPivot.rotation.x = 0;
+    this.rightArmPivot.rotation.z = 0;
     this.leftArmPivot.rotation.x = 0;
-    // återställ vapenvy
+    this.torsoPivot.rotation.x = 0;
+    this.torsoPivot.rotation.z = 0;
     this.setActiveWeapon(this.activeWeapon);
   }
 
-  updateChop(dt) {
-    if (!this.isChopping) return;
-    this.chopTime += dt * 6;
-    // Höj och hugg
-    const swing = (Math.sin(this.chopTime) + 1) * 0.5;
-    this.rightArmPivot.rotation.x = -swing * 1.4 - 0.2;
-    this.leftArmPivot.rotation.x = -swing * 0.6;
+  // Driver chop-animationen utifrån hur långt skördningen kommit (0..1)
+  setChopProgress(progress) {
+    this.chopProgress = progress;
+    const t = Math.min(1, progress);
+
+    // Tre faser: höj (0..0.55), slå ned (0.55..0.75), avsluta (0.75..1)
+    let armX, armZ, torsoX, torsoZ;
+    if (t < 0.55) {
+      // Höj yxan över huvudet
+      const p = t / 0.55;
+      const eased = p * p; // ease-in
+      armX = -0.2 - eased * 2.4; // arm går från lite nedåt till rakt upp+bakåt
+      armZ = 0;
+      torsoX = -eased * 0.25; // luta tillbaka
+      torsoZ = 0;
+    } else if (t < 0.75) {
+      // Slå ned hårt
+      const p = (t - 0.55) / 0.2;
+      const eased = 1 - Math.pow(1 - p, 3); // ease-out, snabbt i början
+      armX = -2.6 + eased * 3.2; // från upp till framåt-ned
+      armZ = 0;
+      torsoX = -0.25 + eased * 0.55; // luta kraftigt framåt
+      torsoZ = 0;
+    } else {
+      // Återhämtning
+      const p = (t - 0.75) / 0.25;
+      armX = 0.6 - p * 0.6;
+      armZ = 0;
+      torsoX = 0.3 - p * 0.3;
+      torsoZ = 0;
+    }
+
+    this.rightArmPivot.rotation.x = armX;
+    this.rightArmPivot.rotation.z = armZ;
+    this.leftArmPivot.rotation.x = armX * 0.55;
+    this.torsoPivot.rotation.x = torsoX;
+    this.torsoPivot.rotation.z = torsoZ;
   }
 
-  // Animera svärds-/pilskott
-  startSwing() {
+  // Startar attack-animation. impactCallback körs vid själva slag-/skott-stunden.
+  startSwing(impactCallback) {
     this.swinging = true;
     this.swingTime = 0;
+    this.swingStruckCallback = impactCallback || null;
+    this.swingImpactFired = false;
+
+    if (this.activeWeapon === 'sword') {
+      this.swingDuration = 0.45;
+    } else if (this.activeWeapon === 'bow') {
+      this.swingDuration = 0.6;
+      this.drawArrow.visible = true;
+    } else {
+      this.swingDuration = 0.3;
+    }
   }
 
   updateSwing(dt) {
     if (!this.swinging) return;
     this.swingTime += dt;
-    const t = this.swingTime / 0.4; // 0.4s total animation
+    const t = this.swingTime / this.swingDuration;
+
     if (this.activeWeapon === 'sword') {
-      // Hugg från sida till sida
-      const phase = Math.sin(t * Math.PI);
-      this.rightArmPivot.rotation.z = -phase * 1.2;
-      this.rightArmPivot.rotation.x = -phase * 0.8;
+      this._animateSwordSlash(t);
     } else if (this.activeWeapon === 'bow') {
-      // Sikta + skjut
-      const phase = Math.min(t, 1);
-      this.leftArmPivot.rotation.x = -1.5 + phase * 0.2;
-      this.rightArmPivot.rotation.x = -1.3 + phase * 0.15;
+      this._animateBowShot(t);
     }
+
     if (t >= 1) {
       this.swinging = false;
-      this.rightArmPivot.rotation.z = 0;
+      this.swingStruckCallback = null;
+      this.drawArrow.visible = false;
       this.rightArmPivot.rotation.x = 0;
+      this.rightArmPivot.rotation.y = 0;
+      this.rightArmPivot.rotation.z = 0;
       this.leftArmPivot.rotation.x = 0;
+      this.leftArmPivot.rotation.z = 0;
+      this.torsoPivot.rotation.x = 0;
+      this.torsoPivot.rotation.y = 0;
+      this.torsoPivot.rotation.z = 0;
+      if (this.bowString) this.bowString.scale.y = 1;
     }
+  }
+
+  _animateSwordSlash(t) {
+    // 0..0.3: Höj svärdet över huvudet på ena sidan (windup)
+    // 0.3..0.55: Snabb diagonal slash över kroppen (impact mitt i)
+    // 0.55..1: Återhämtning till neutral
+    let armX, armZ, torsoX, torsoZ;
+    if (t < 0.3) {
+      const p = t / 0.3;
+      const eased = p * p;
+      armX = -eased * 2.0; // arm går upp
+      armZ = eased * 0.9; // arm ut åt höger
+      torsoX = -eased * 0.15; // luta bakåt
+      torsoZ = eased * 0.25; // luta åt höger
+    } else if (t < 0.55) {
+      const p = (t - 0.3) / 0.25;
+      const eased = 1 - Math.pow(1 - p, 2.5);
+      armX = -2.0 + eased * 2.6; // sveper ned framåt
+      armZ = 0.9 - eased * 2.2; // korsar över kroppen åt vänster
+      torsoX = -0.15 + eased * 0.4; // pressar framåt
+      torsoZ = 0.25 - eased * 0.55; // svänger åt vänster
+      // Trigga skadan vid impakt-fönstret
+      if (!this.swingImpactFired && p > 0.6 && this.swingStruckCallback) {
+        this.swingStruckCallback();
+        this.swingImpactFired = true;
+      }
+    } else {
+      const p = (t - 0.55) / 0.45;
+      armX = 0.6 - p * 0.6;
+      armZ = -1.3 + p * 1.3;
+      torsoX = 0.25 - p * 0.25;
+      torsoZ = -0.3 + p * 0.3;
+    }
+
+    this.rightArmPivot.rotation.x = armX;
+    this.rightArmPivot.rotation.z = armZ;
+    this.leftArmPivot.rotation.x = armX * 0.3;
+    this.torsoPivot.rotation.x = torsoX;
+    this.torsoPivot.rotation.z = torsoZ;
+  }
+
+  _animateBowShot(t) {
+    // 0..0.55: Lyft bågen, dra strängen bakåt
+    // 0.55..0.65: Släpp (sträng + arm snäpper framåt)
+    // 0.65..1: Sänk bågen
+    let leftX, rightX, rightZ, torsoY;
+    if (t < 0.55) {
+      const p = t / 0.55;
+      const eased = 1 - Math.pow(1 - p, 2); // ease-out: snabb upp först
+      // Vänster arm håller bågen rakt fram
+      leftX = -eased * 1.55;
+      // Höger arm drar bakåt + utåt
+      rightX = -eased * 1.4;
+      rightZ = eased * 0.5;
+      // Liten torso-vridning för att rikta
+      torsoY = eased * 0.15;
+      // Sträng dras ut (skala bowString)
+      if (this.bowString) this.bowString.scale.y = 1 + eased * 0.4;
+    } else if (t < 0.65) {
+      const p = (t - 0.55) / 0.1;
+      // Släpp - höger arm snäpper tillbaka snabbt
+      leftX = -1.55;
+      rightX = -1.4 + p * 1.6;
+      rightZ = 0.5 - p * 0.5;
+      torsoY = 0.15;
+      if (this.bowString) this.bowString.scale.y = 1 + (1 - p) * 0.4;
+      if (!this.swingImpactFired && this.swingStruckCallback) {
+        this.swingStruckCallback();
+        this.swingImpactFired = true;
+        this.drawArrow.visible = false;
+      }
+    } else {
+      const p = (t - 0.65) / 0.35;
+      leftX = -1.55 + p * 1.55;
+      rightX = 0.2 - p * 0.2;
+      rightZ = 0;
+      torsoY = 0.15 - p * 0.15;
+      if (this.bowString) this.bowString.scale.y = 1;
+    }
+
+    this.leftArmPivot.rotation.x = leftX;
+    this.rightArmPivot.rotation.x = rightX;
+    this.rightArmPivot.rotation.z = rightZ;
+    this.torsoPivot.rotation.y = torsoY;
   }
 
   takeDamage(amount) {
     if (this.invulnTimer > 0) return false;
     this.hp = Math.max(0, this.hp - amount);
     this.invulnTimer = 0.8;
+    this.flashTimer = 0.3;
     return true;
   }
 
