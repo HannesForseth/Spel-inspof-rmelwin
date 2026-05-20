@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skogens Skördare</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <div id="ui">
+    <div id="title">🌲 Skogens Skördare</div>
+
+    <div id="inventory">
+      <div class="resource">🪵 Trä <span id="wood-count">0</span></div>
+      <div class="resource">🫐 Bär <span id="berry-count">0</span></div>
+      <div class="resource">🐟 Fisk <span id="fish-count">0</span></div>
+      <div class="resource backpack">🎒 <span id="total-count">0</span>/<span id="capacity">10</span></div>
+      <div class="resource gold">💰 <span id="gold-count">0</span></div>
+    </div>
+
+    <div id="controls-hint">
+      <b>WASD</b> rörelse · <b>Mus (håll)</b> rotera kamera · <b>E (håll)</b> samla · <b>B</b> butik
+    </div>
+
+    <div id="interact-prompt"></div>
+
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+
+    <button id="shop-button">🏪 Butik (B)</button>
+
+    <div id="shop" class="hidden">
+      <h2>🏪 Butik &amp; Uppgraderingar</h2>
+      <div id="shop-content"></div>
+      <button id="close-shop">Stäng (Esc)</button>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
