@@ -53,6 +53,9 @@ function makeNameSprite(text) {
   return sprite;
 }
 
+const RENDER_DELAY = 0.12;
+const MAX_SNAPSHOTS = 40;
+
 function shortAngle(from, to) {
   let d = to - from;
   while (d > Math.PI) d -= Math.PI * 2;
@@ -67,9 +70,8 @@ export class RemotePlayer {
     this.username = username;
 
     this.position = new THREE.Vector3();
-    this.targetPosition = new THREE.Vector3();
     this.facing = 0;
-    this.targetFacing = 0;
+    this.snapshots = [];
     this.action = 'idle';
     this.walkTime = 0;
     this.attackTime = 0;
@@ -140,8 +142,14 @@ export class RemotePlayer {
   }
 
   setTargetState({ x, y, z, facing, action, hp }) {
-    this.targetPosition.set(x, y, z);
-    this.targetFacing = facing;
+    const t = performance.now() / 1000;
+    const snapshot = { t, x, y, z, facing };
+    this.snapshots.push(snapshot);
+    if (this.snapshots.length > MAX_SNAPSHOTS) this.snapshots.shift();
+    if (this.snapshots.length === 1) {
+      this.position.set(x, y, z);
+      this.facing = facing;
+    }
     if (action) this.action = action;
     const ghost = typeof hp === 'number' && hp <= 0;
     if (ghost !== this.isGhost) {
@@ -153,10 +161,45 @@ export class RemotePlayer {
     }
   }
 
+  _interpolate() {
+    if (this.snapshots.length === 0) return;
+    const renderTime = performance.now() / 1000 - RENDER_DELAY;
+
+    let prev = null;
+    let next = null;
+    for (let i = this.snapshots.length - 1; i >= 0; i--) {
+      if (this.snapshots[i].t <= renderTime) {
+        prev = this.snapshots[i];
+        next = this.snapshots[i + 1] || null;
+        break;
+      }
+    }
+
+    if (prev && next) {
+      const span = next.t - prev.t;
+      const alpha = span > 0 ? Math.min(1, (renderTime - prev.t) / span) : 0;
+      this.position.set(
+        prev.x + (next.x - prev.x) * alpha,
+        prev.y + (next.y - prev.y) * alpha,
+        prev.z + (next.z - prev.z) * alpha,
+      );
+      this.facing = prev.facing + shortAngle(prev.facing, next.facing) * alpha;
+    } else if (prev) {
+      this.position.set(prev.x, prev.y, prev.z);
+      this.facing = prev.facing;
+    } else {
+      const first = this.snapshots[0];
+      this.position.set(first.x, first.y, first.z);
+      this.facing = first.facing;
+    }
+
+    while (this.snapshots.length > 2 && this.snapshots[1].t < renderTime - 0.5) {
+      this.snapshots.shift();
+    }
+  }
+
   update(dt) {
-    const lerpFactor = Math.min(dt * 12, 1);
-    this.position.lerp(this.targetPosition, lerpFactor);
-    this.facing += shortAngle(this.facing, this.targetFacing) * lerpFactor;
+    this._interpolate();
 
     this.group.position.copy(this.position);
     this.group.rotation.y = this.facing;
@@ -171,10 +214,11 @@ export class RemotePlayer {
       this.rightArmPivot.rotation.x = swing * 0.6;
     } else {
       this.walkTime = 0;
-      this.leftLegPivot.rotation.x *= 1 - lerpFactor;
-      this.rightLegPivot.rotation.x *= 1 - lerpFactor;
-      this.leftArmPivot.rotation.x *= 1 - lerpFactor;
-      this.rightArmPivot.rotation.x *= 1 - lerpFactor;
+      const decay = Math.min(dt * 10, 1);
+      this.leftLegPivot.rotation.x *= 1 - decay;
+      this.rightLegPivot.rotation.x *= 1 - decay;
+      this.leftArmPivot.rotation.x *= 1 - decay;
+      this.rightArmPivot.rotation.x *= 1 - decay;
     }
 
     if (this.action === 'attack') {
