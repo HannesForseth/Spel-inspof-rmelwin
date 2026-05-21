@@ -334,7 +334,24 @@ export class Bear extends Creature {
     this.actions = null;
     this.currentActionName = null;
     this._attackAnimTime = 0;
+    this._deathHideDelay = 0;
     this._loadModel();
+  }
+
+  die() {
+    this.alive = false;
+    this.respawnTimer = 0;
+    this._deathHideDelay = 2.0;
+  }
+
+  respawn() {
+    super.respawn();
+    this._deathHideDelay = 0;
+    this.currentActionName = null;
+    if (this.actions) {
+      for (const a of Object.values(this.actions)) a.stop();
+      this._playAction('Idle');
+    }
   }
 
   async _loadModel() {
@@ -376,6 +393,12 @@ export class Bear extends Creature {
     if (this.mixer) {
       this.mixer.update(dt);
       this._updateAnimation(dt);
+    }
+
+    if (!this.alive && this._deathHideDelay > 0) {
+      this._deathHideDelay -= dt;
+      if (this._deathHideDelay > 0) this.group.visible = true;
+      else this.group.visible = false;
     }
   }
 
