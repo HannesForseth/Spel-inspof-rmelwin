@@ -825,16 +825,23 @@ export class Game {
       return;
     }
     this.spellCooldowns[slot] = spell.cooldown;
+
+    if (spell.type === 'projectile') {
+      this.player.facing = Math.atan2(
+        -Math.sin(this.cameraAngle),
+        -Math.cos(this.cameraAngle),
+      );
+    }
+
     this.player.triggerCast(spell.castAnim);
     vibrate(25);
 
-    const handPos = new THREE.Vector3();
-    this.player.getRightHandWorldPosition(handPos);
     const playerPos = this.player.position.clone();
-    const facing = this.player.facing;
 
     setTimeout(() => {
       if (!this.player.isAlive()) return;
+      const handPos = new THREE.Vector3();
+      this.player.getRightHandWorldPosition(handPos);
       if (spell.type === 'projectile') {
         this._spawnSpellProjectile(spell, handPos);
       } else if (spell.type === 'aoe') {
@@ -844,25 +851,11 @@ export class Game {
   }
 
   _spawnSpellProjectile(spell, origin) {
-    const target = findNearestTarget(
-      this.player.position,
-      this._getAllAliveCreatures(),
-      25,
+    const dir = new THREE.Vector3(
+      Math.sin(this.player.facing),
+      0,
+      Math.cos(this.player.facing),
     );
-    let dir;
-    if (target) {
-      dir = new THREE.Vector3(
-        target.position.x - origin.x,
-        (target.position.y || 1) + 0.8 - origin.y,
-        target.position.z - origin.z,
-      ).normalize();
-    } else {
-      dir = new THREE.Vector3(
-        Math.sin(this.player.facing),
-        0,
-        Math.cos(this.player.facing),
-      );
-    }
     this.spellProjectiles.push(
       new SpellProjectile(this.scene, spell, origin, dir),
     );
