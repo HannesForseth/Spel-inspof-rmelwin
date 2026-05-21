@@ -360,6 +360,14 @@ export class Bear extends Creature {
       this.group.add(root);
       this.mixer = mixer;
       this.actions = actions;
+      this._rootBone = root.getObjectByName('root') || null;
+      this._hipsBone = root.getObjectByName('hips') || null;
+      this._rootBoneRest = this._rootBone
+        ? this._rootBone.position.clone()
+        : null;
+      this._hipsBoneRest = this._hipsBone
+        ? this._hipsBone.position.clone()
+        : null;
       this._playAction('Idle');
     } catch (err) {
       console.warn('Bear: GLB kunde inte laddas', err);
@@ -392,6 +400,13 @@ export class Bear extends Creature {
 
     if (this.mixer) {
       this.mixer.update(dt);
+      if (this._rootBone && this._rootBoneRest) {
+        this._rootBone.position.copy(this._rootBoneRest);
+      }
+      if (this._hipsBone && this._hipsBoneRest) {
+        this._hipsBone.position.x = this._hipsBoneRest.x;
+        this._hipsBone.position.z = this._hipsBoneRest.z;
+      }
       this._updateAnimation(dt);
     }
 
