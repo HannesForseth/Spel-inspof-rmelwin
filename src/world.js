@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Tree, Bush, FishingSpot, Campfire } from './resources.js';
 import { Merchant, Anvil } from './npc.js';
+import { cloneModel } from './models.js';
 
 const PLAYER_RADIUS = 0.45;
 const WORLD_BOUND = 145;
@@ -226,49 +227,26 @@ export class World {
     }
   }
 
-  // Grottan: U-formad bergmassa med tydlig öppning på framsidan
+  // Grottan: GLB-mesh från Blender + bevarade kollisioner och fackla
   createCave() {
     this.caveCenter = new THREE.Vector3(-50, 0, 30);
     const cx = this.caveCenter.x;
     const cz = this.caveCenter.z;
 
-    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.95 });
-    const darkInsideMat = new THREE.MeshStandardMaterial({
-      color: 0x2e2e2e,
-      side: THREE.BackSide,
-      roughness: 1,
-    });
-
-    // Bergmassa - flera stenar i U-form, lämnar öppning åt söder (+z)
-    // Ingången är vid x≈0, z≈+7 (mellan två pelare)
+    // Kollisioner — osynliga cylindrar som approximerar bergmassan
+    // (GLB-meshen själv har detaljerade former, dessa stoppar spelaren)
     const rockClusters = [
-      // Bakre rad (norr)
       { x: -6, z: -9, r: 5.5 },
       { x: 0, z: -10, r: 6.5 },
       { x: 6, z: -9, r: 5.5 },
-      // Vänster sida
       { x: -10, z: -3, r: 5 },
       { x: -10, z: 3, r: 4 },
-      // Höger sida
       { x: 10, z: -3, r: 5 },
       { x: 10, z: 3, r: 4 },
-      // Pelare runt ingången - tillräckligt mellanrum för att gå in
       { x: -5, z: 7, r: 2.8 },
       { x: 5, z: 7, r: 2.8 },
     ];
     for (const o of rockClusters) {
-      const rock = new THREE.Mesh(new THREE.SphereGeometry(o.r, 14, 10), stoneMat);
-      // Lite slumpmässig variation så de inte ser identiska ut
-      rock.position.set(
-        cx + o.x + (Math.random() - 0.5) * 0.4,
-        o.r * 0.6 + (Math.random() - 0.5) * 0.3,
-        cz + o.z + (Math.random() - 0.5) * 0.4,
-      );
-      rock.scale.set(1, 0.95 + Math.random() * 0.15, 1);
-      rock.castShadow = true;
-      rock.receiveShadow = true;
-      this.scene.add(rock);
-      // Kollision - lite mindre radie så det inte överlappar grannar
       this.obstacles.push({
         x: cx + o.x,
         z: cz + o.z,
@@ -276,46 +254,19 @@ export class World {
       });
     }
 
-    // Insida - bagformad kammare bakom bergmassan
-    // Använd cylinder med BackSide-material för väggar
-    const interior = new THREE.Mesh(
-      new THREE.CylinderGeometry(5.5, 5.5, 5, 18, 1, true),
-      darkInsideMat,
-    );
-    interior.position.set(cx, 2.5, cz - 3);
-    this.scene.add(interior);
-
-    // Golv inuti grottan - jord/sten
-    const caveFloor = new THREE.Mesh(
-      new THREE.CircleGeometry(6, 18),
-      new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.95 }),
-    );
-    caveFloor.rotation.x = -Math.PI / 2;
-    caveFloor.position.set(cx, 0.04, cz - 3);
-    caveFloor.receiveShadow = true;
-    this.scene.add(caveFloor);
-
-    // Tak ovanför kammaren - mörk skiva
-    const caveRoof = new THREE.Mesh(
-      new THREE.CircleGeometry(6, 18),
-      new THREE.MeshStandardMaterial({ color: 0x1a1a1a, side: THREE.DoubleSide }),
-    );
-    caveRoof.rotation.x = Math.PI / 2;
-    caveRoof.position.set(cx, 5, cz - 3);
-    this.scene.add(caveRoof);
-
-    // Stalaktiter från taket för känsla
-    for (let i = 0; i < 5; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const r = Math.random() * 4;
-      const stal = new THREE.Mesh(
-        new THREE.ConeGeometry(0.15 + Math.random() * 0.1, 0.6 + Math.random() * 0.4, 6),
-        stoneMat,
-      );
-      stal.position.set(cx + Math.cos(angle) * r, 4.6, cz - 3 + Math.sin(angle) * r);
-      stal.rotation.x = Math.PI;
-      this.scene.add(stal);
-    }
+    // Ladda Blender-grottan asynkront
+    cloneModel('/models/cave.glb')
+      .then(({ root }) => {
+        root.position.set(cx, 0, cz);
+        root.traverse((obj) => {
+          if (obj.isMesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+          }
+        });
+        this.scene.add(root);
+      })
+      .catch((err) => console.warn('cave.glb kunde inte laddas', err));
 
     // Fackla inne i grottan - varmt ljus + visuell fackla
     const torchLight = new THREE.PointLight(0xff8a3d, 3, 18, 2);
