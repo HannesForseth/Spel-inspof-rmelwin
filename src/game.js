@@ -295,6 +295,9 @@ export class Game {
     if (this.controls.consumeToggleCharacter()) {
       this.ui.toggleCharacterPanel();
     }
+    if (this.controls.consumeToggleBag()) {
+      this.ui.toggleBag();
+    }
 
     // Kolla om spelaren är i sjön (drunkningsmekanik)
     this.player.inWater = this.world._inPond(

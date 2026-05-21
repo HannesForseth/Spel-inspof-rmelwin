@@ -39,6 +39,12 @@ export class UI {
     this.characterOpen = false;
     this.closeCharEl.addEventListener('click', () => this.toggleCharacterPanel());
 
+    this.bagPanelEl = document.getElementById('bag-panel');
+    this.bagContentEl = document.getElementById('bag-content');
+    this.closeBagEl = document.getElementById('close-bag');
+    this.bagOpen = false;
+    this.closeBagEl.addEventListener('click', () => this.toggleBag());
+
     this.timeLabelEl = document.getElementById('time-label');
 
     this.weaponSlots = document.querySelectorAll('.weapon-slot');
@@ -167,6 +173,78 @@ export class UI {
     this.characterOpen = !this.characterOpen;
     this.charPanelEl.classList.toggle('hidden', !this.characterOpen);
     if (this.characterOpen) this.renderCharacterPanel();
+    if (this.characterOpen && this.bagOpen) this.toggleBag();
+  }
+
+  toggleBag() {
+    this.bagOpen = !this.bagOpen;
+    this.bagPanelEl.classList.toggle('hidden', !this.bagOpen);
+    if (this.bagOpen) this.renderBag();
+    if (this.bagOpen && this.characterOpen) this.toggleCharacterPanel();
+  }
+
+  renderBag() {
+    const inv = this.game.inventory;
+    const heal = {
+      berry: 10,
+      meat: 8,
+      cookedMeat: 40,
+      fish: 15,
+    };
+    const slots = [
+      { key: 'wood', icon: '🪵', label: 'Trä' },
+      { key: 'hide', icon: '🟫', label: 'Skinn' },
+      { key: 'berry', icon: '🫐', label: 'Bär' },
+      { key: 'fish', icon: '🐟', label: 'Fisk' },
+      { key: 'meat', icon: '🥩', label: 'Kött' },
+      { key: 'cookedMeat', icon: '🍖', label: 'Tillagat' },
+      { key: 'arrows', icon: '🏹', label: 'Pilar' },
+    ];
+
+    let html = `<p class="bag-summary">🎒 ${inv.total()} / ${inv.capacity} · 💰 ${inv.gold} guld</p>`;
+    html += `<div class="bag-grid">`;
+    for (const s of slots) {
+      const count = inv[s.key];
+      const empty = count <= 0;
+      const canEat = heal[s.key] != null && !empty;
+      html += `<div class="bag-slot ${empty ? 'empty' : ''}">
+        <div class="bag-icon">${s.icon}</div>
+        <div class="bag-label">${s.label}</div>
+        <div class="bag-count">${count}</div>
+        <div class="bag-actions">
+          ${canEat ? `<button class="bag-btn eat" data-action="eat" data-item="${s.key}">🍴 +${heal[s.key]}</button>` : ''}
+          ${empty ? '' : `<button class="bag-btn drop" data-action="drop" data-item="${s.key}">🗑️ 1</button>`}
+          ${count > 1 ? `<button class="bag-btn drop-all" data-action="drop-all" data-item="${s.key}">🗑️ alla</button>` : ''}
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
+
+    this.bagContentEl.innerHTML = html;
+    this.bagContentEl.querySelectorAll('.bag-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        const item = btn.dataset.item;
+        this._bagAction(action, item, heal);
+        this.renderBag();
+      });
+    });
+  }
+
+  _bagAction(action, item, heal) {
+    const inv = this.game.inventory;
+    if (action === 'eat' && heal[item] && inv[item] > 0) {
+      inv[item] -= 1;
+      const healed = this.game.player.heal(heal[item]);
+      this.showToast(`🍴 +${healed} ❤️`);
+    } else if (action === 'drop' && inv[item] > 0) {
+      inv[item] -= 1;
+      this.showToast(`🗑️ Slängde 1× ${item}`);
+    } else if (action === 'drop-all' && inv[item] > 0) {
+      const n = inv[item];
+      inv[item] = 0;
+      this.showToast(`🗑️ Slängde ${n}× ${item}`);
+    }
   }
 
   renderCharacterPanel() {

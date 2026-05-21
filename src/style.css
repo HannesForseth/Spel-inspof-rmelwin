@@ -137,7 +137,8 @@ body {
   display: none;
 }
 
-#character-panel {
+#character-panel,
+#bag-panel {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -154,8 +155,116 @@ body {
   color: white;
 }
 
-#character-panel.hidden {
+#character-panel.hidden,
+#bag-panel.hidden {
   display: none;
+}
+
+#bag-panel h2 {
+  margin-bottom: 10px;
+}
+
+.bag-summary {
+  font-size: 13px;
+  opacity: 0.75;
+  margin-bottom: 14px;
+}
+
+.bag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
+  gap: 10px;
+}
+
+.bag-slot {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px 8px 8px;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.bag-slot.empty {
+  opacity: 0.4;
+}
+
+.bag-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.bag-label {
+  font-size: 12px;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+.bag-count {
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.bag-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.bag-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: white;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.bag-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.bag-btn.eat {
+  background: rgba(76, 175, 80, 0.3);
+  border-color: rgba(76, 175, 80, 0.6);
+}
+
+.bag-btn.eat:hover {
+  background: rgba(76, 175, 80, 0.5);
+}
+
+.bag-btn.drop,
+.bag-btn.drop-all {
+  background: rgba(244, 67, 54, 0.25);
+  border-color: rgba(244, 67, 54, 0.55);
+}
+
+.bag-btn.drop:hover,
+.bag-btn.drop-all:hover {
+  background: rgba(244, 67, 54, 0.45);
+}
+
+#close-bag {
+  margin: 16px auto 0;
+  background: #555;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  font-family: inherit;
+  display: block;
+}
+
+#close-bag:hover {
+  background: #666;
 }
 
 #character-panel h2 {

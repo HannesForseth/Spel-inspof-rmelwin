@@ -8,6 +8,7 @@ export class Controls {
     this.eatQueued = false;
     this.interactQueued = false; // E-tryck (en gång per nedtryckning)
     this.toggleCharacterQueued = false;
+    this.toggleBagQueued = false;
     this.selectedWeapon = null; // 'sword' | 'bow' | null
 
     // Virtuell axis (för mobil joystick). x/z -1..1, magnitude 0..1
@@ -28,6 +29,7 @@ export class Controls {
         if (k === 'h') this.eatQueued = true;
         if (k === 'e') this.interactQueued = true;
         if (k === 'c') this.toggleCharacterQueued = true;
+        if (k === 'b') this.toggleBagQueued = true;
         if (k === '1') this.selectedWeapon = 'sword';
         if (k === '2') this.selectedWeapon = 'bow';
       }
@@ -87,6 +89,14 @@ export class Controls {
   consumeToggleCharacter() {
     if (this.toggleCharacterQueued) {
       this.toggleCharacterQueued = false;
+      return true;
+    }
+    return false;
+  }
+
+  consumeToggleBag() {
+    if (this.toggleBagQueued) {
+      this.toggleBagQueued = false;
       return true;
     }
     return false;

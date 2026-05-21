@@ -74,6 +74,7 @@ export class MobileControls {
       </div>
       <div id="mobile-action-grid">
         <button class="mobile-btn mobile-btn-character" data-action="character" type="button" aria-label="Karaktär">👤</button>
+        <button class="mobile-btn mobile-btn-bag" data-action="bag" type="button" aria-label="Ryggsäck">🎒</button>
         <button class="mobile-btn mobile-btn-eat" data-action="eat" type="button" aria-label="Ät">🍖</button>
         <button class="mobile-btn mobile-btn-weapon" data-weapon="sword" type="button" aria-label="Svärd">🗡️</button>
         <button class="mobile-btn mobile-btn-weapon" data-weapon="bow" type="button" aria-label="Båge">🏹</button>
@@ -165,6 +166,9 @@ export class MobileControls {
       vibrate(30);
     } else if (action === 'character') {
       this.controls.toggleCharacterQueued = true;
+      vibrate(15);
+    } else if (action === 'bag') {
+      this.controls.toggleBagQueued = true;
       vibrate(15);
     }
   }
