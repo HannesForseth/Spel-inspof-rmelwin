@@ -44,8 +44,19 @@ export async function cloneModel(url) {
 // Laddar en utrustnings-GLB (typ rustning) och rebindar dess skinned meshes
 // till värdens skelett genom att matcha bone-namn. Returnerar en Group som
 // innehåller alla armor-meshes - toggla synlighet via group.visible.
+//
+// Hanterar armor-modeller som är authorade med en root-translation (typ
+// shadow-rustningen vid x=-55) genom att nollställa armor-rotens position
+// och räkna om boneInverses från armorens egna bones (som alltid är i
+// bind pose eftersom inget animerar dem) - då matchar bind pose host-rigen
+// vid origin oavsett authoring-position.
 export async function loadArmorOntoSkeleton(url, hostRoot) {
   const { root: armorRoot } = await cloneModel(url);
+  armorRoot.position.set(0, 0, 0);
+  armorRoot.rotation.set(0, 0, 0);
+  armorRoot.scale.set(1, 1, 1);
+  armorRoot.updateMatrixWorld(true);
+
   const group = new THREE.Group();
   group.visible = false;
   hostRoot.add(group);
@@ -59,7 +70,10 @@ export async function loadArmorOntoSkeleton(url, hostRoot) {
     const newBones = mesh.skeleton.bones.map((bone) => {
       return hostRoot.getObjectByName(bone.name) || bone;
     });
-    const newSkeleton = new THREE.Skeleton(newBones, mesh.skeleton.boneInverses);
+    const boneInverses = mesh.skeleton.bones.map((bone) =>
+      bone.matrixWorld.clone().invert(),
+    );
+    const newSkeleton = new THREE.Skeleton(newBones, boneInverses);
     mesh.bind(newSkeleton, new THREE.Matrix4());
     group.add(mesh);
   }

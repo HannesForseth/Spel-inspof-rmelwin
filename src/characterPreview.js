@@ -67,6 +67,9 @@ export class CharacterPreview {
       loadArmorOntoSkeleton('/models/armor_silver.glb', root).then((g) => {
         this.armorGroup = g;
       });
+      loadArmorOntoSkeleton('/models/armor_shadow.glb', root).then((g) => {
+        this.shadowArmorGroup = g;
+      });
     } catch (err) {
       console.warn('[CharacterPreview] model error', err);
     }
@@ -93,7 +96,9 @@ export class CharacterPreview {
     if (this.weapons.bow) this.weapons.bow.visible = !!eq.bow;
     if (this.weapons.shield) this.weapons.shield.visible = !!eq.shield;
     if (this.weapons.axe) this.weapons.axe.visible = false;
-    if (this.armorGroup) this.armorGroup.visible = !!eq.armor;
+    const forceShadow = !!this.player?.forceShadowArmor;
+    if (this.shadowArmorGroup) this.shadowArmorGroup.visible = forceShadow;
+    if (this.armorGroup) this.armorGroup.visible = !forceShadow && !!eq.armor;
   }
 
   start() {

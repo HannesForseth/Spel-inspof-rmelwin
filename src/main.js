@@ -14,6 +14,11 @@ async function boot() {
 
   const container = document.getElementById('game-container');
   const game = new Game(container);
+  // HannesF får shadow-rustning permanent
+  const username = (getUsernameFromUser(session.user) ?? '').toLowerCase();
+  if (username === 'hannesf') {
+    game.player.forceShadowArmor = true;
+  }
   game.start();
   window.game = game;
 

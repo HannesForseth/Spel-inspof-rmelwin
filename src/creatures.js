@@ -736,6 +736,8 @@ export class Wolf extends Creature {
   async _loadModel() {
     try {
       const { root, mixer, actions } = await cloneModel('/models/wolf.glb');
+      // Nollställ authoring-offset (wolf.glb har root translation [-25,0,0])
+      root.position.set(0, 0, 0);
       this.group.add(root);
       this.mixer = mixer;
       this.actions = actions;

@@ -135,6 +135,7 @@ export class Player {
     this.currentActionName = null;
     this.hasShield = false;
     this.equipped = { sword: false, bow: false, shield: false, armor: false };
+    this.forceShadowArmor = false; // Sätts externt för t.ex. HannesF
     this._loadGLB();
   }
 
@@ -184,6 +185,9 @@ export class Player {
       }
       loadArmorOntoSkeleton('/models/armor_silver.glb', root).then((g) => {
         this._glbArmor = g;
+      });
+      loadArmorOntoSkeleton('/models/armor_shadow.glb', root).then((g) => {
+        this._glbShadowArmor = g;
       });
     } catch (err) {
       console.warn('[Player] GLB kunde inte laddas, kvar med box-mesh', err);
@@ -254,8 +258,12 @@ export class Player {
       this._glbShield.visible =
         this.equipped.shield && this.activeWeapon !== 'bow' && !this.isChopping;
     }
+    if (this._glbShadowArmor) {
+      this._glbShadowArmor.visible = !!this.forceShadowArmor;
+    }
     if (this._glbArmor) {
-      this._glbArmor.visible = !!this.equipped.armor;
+      // Silver göms när shadow forceas så de inte clippar varandra
+      this._glbArmor.visible = !this.forceShadowArmor && !!this.equipped.armor;
     }
 
     let next;
