@@ -157,9 +157,38 @@ export class Player {
         '[Player] GLB laddad. Animations:',
         Object.keys(actions).join(', '),
       );
+
+      if (this._handR) {
+        this._attachWeapon('/models/sword.glb', this._handR).then((m) => {
+          this._glbSword = m;
+        });
+        this._attachWeapon('/models/axe.glb', this._handR).then((m) => {
+          this._glbAxe = m;
+        });
+      }
+      if (this._handL) {
+        this._attachWeapon('/models/bow.glb', this._handL).then((m) => {
+          this._glbBow = m;
+        });
+      }
     } catch (err) {
       console.warn('[Player] GLB kunde inte laddas, kvar med box-mesh', err);
     }
+  }
+
+  async _attachWeapon(url, bone) {
+    const { root } = await cloneModel(url);
+    for (const name of ['Weapon_Sword', 'Weapon_Bow', 'Weapon_Axe']) {
+      const obj = root.getObjectByName(name);
+      if (obj) {
+        obj.position.set(0, 0, 0);
+        obj.rotation.set(0, 0, 0);
+        break;
+      }
+    }
+    bone.add(root);
+    root.visible = false;
+    return root;
   }
 
   _playAction(name, fadeTime = 0.12, opts = {}) {
@@ -194,6 +223,16 @@ export class Player {
     if (this._hipsBone && this._hipsBoneRest) {
       this._hipsBone.position.x = this._hipsBoneRest.x;
       this._hipsBone.position.z = this._hipsBoneRest.z;
+    }
+
+    if (this._glbSword) {
+      this._glbSword.visible = this.activeWeapon === 'sword' && !this.isChopping;
+    }
+    if (this._glbBow) {
+      this._glbBow.visible = this.activeWeapon === 'bow' && !this.isChopping;
+    }
+    if (this._glbAxe) {
+      this._glbAxe.visible = this.isChopping;
     }
 
     let next;
