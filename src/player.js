@@ -174,6 +174,11 @@ export class Player {
         this._attachWeapon('/models/axe.glb', this._handR).then((m) => {
           this._glbAxe = m;
         });
+        this._attachWeapon('/models/shadow_sword.glb', this._handR, {
+          boostEmissive: true,
+        }).then((m) => {
+          this._glbShadowSword = m;
+        });
       }
       if (this._handL) {
         this._attachWeapon('/models/bow.glb', this._handL).then((m) => {
@@ -181,6 +186,11 @@ export class Player {
         });
         this._attachWeapon('/models/shield.glb', this._handL).then((m) => {
           this._glbShield = m;
+        });
+        this._attachWeapon('/models/shadow_shield.glb', this._handL, {
+          boostEmissive: true,
+        }).then((m) => {
+          this._glbShadowShield = m;
         });
       }
       loadArmorOntoSkeleton('/models/armor_silver.glb', root).then((g) => {
@@ -194,15 +204,24 @@ export class Player {
     }
   }
 
-  async _attachWeapon(url, bone) {
+  async _attachWeapon(url, bone, opts = {}) {
     const { root } = await cloneModel(url);
-    for (const name of ['Weapon_Sword', 'Weapon_Bow', 'Weapon_Axe', 'Weapon_Shield']) {
-      const obj = root.getObjectByName(name);
-      if (obj) {
-        obj.position.set(0, 0, 0);
-        obj.rotation.set(0, 0, 0);
-        break;
+    let weaponNode = null;
+    root.traverse((obj) => {
+      if (!weaponNode && obj.name && obj.name.startsWith('Weapon_')) {
+        weaponNode = obj;
       }
+    });
+    if (weaponNode) {
+      weaponNode.position.set(0, 0, 0);
+      weaponNode.rotation.set(0, 0, 0);
+    }
+    if (opts.boostEmissive) {
+      root.traverse((m) => {
+        if (m.isMesh && m.material && m.material.emissive) {
+          m.material.emissiveIntensity = (m.material.emissiveIntensity || 1) * 2.5;
+        }
+      });
     }
     bone.add(root);
     root.visible = false;
@@ -243,10 +262,11 @@ export class Player {
       this._hipsBone.position.z = this._hipsBoneRest.z;
     }
 
-    if (this._glbSword) {
-      this._glbSword.visible =
-        this.equipped.sword && this.activeWeapon === 'sword' && !this.isChopping;
-    }
+    const shadow = !!this.forceShadowArmor;
+    const swordOn = this.equipped.sword && this.activeWeapon === 'sword' && !this.isChopping;
+    const shieldOn = this.equipped.shield && this.activeWeapon !== 'bow' && !this.isChopping;
+    if (this._glbSword) this._glbSword.visible = !shadow && swordOn;
+    if (this._glbShadowSword) this._glbShadowSword.visible = shadow && swordOn;
     if (this._glbBow) {
       this._glbBow.visible =
         this.equipped.bow && this.activeWeapon === 'bow' && !this.isChopping;
@@ -254,16 +274,12 @@ export class Player {
     if (this._glbAxe) {
       this._glbAxe.visible = this.isChopping;
     }
-    if (this._glbShield) {
-      this._glbShield.visible =
-        this.equipped.shield && this.activeWeapon !== 'bow' && !this.isChopping;
-    }
-    if (this._glbShadowArmor) {
-      this._glbShadowArmor.visible = !!this.forceShadowArmor;
-    }
+    if (this._glbShield) this._glbShield.visible = !shadow && shieldOn;
+    if (this._glbShadowShield) this._glbShadowShield.visible = shadow && shieldOn;
+    if (this._glbShadowArmor) this._glbShadowArmor.visible = shadow;
     if (this._glbArmor) {
       // Silver göms när shadow forceas så de inte clippar varandra
-      this._glbArmor.visible = !this.forceShadowArmor && !!this.equipped.armor;
+      this._glbArmor.visible = !shadow && !!this.equipped.armor;
     }
 
     let next;

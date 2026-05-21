@@ -41,21 +41,35 @@ export async function cloneModel(url) {
   return { root, mixer, actions };
 }
 
+// Nollställer transforms på alla container-noder (icke-bones, icke-meshes)
+// i hierarkin. Behövs när Blender-exporter har lagt en authoring-offset
+// på rig-noden (typ WolfRig vid [-25,0,0] eller PlayerRig vid [-55,0,0])
+// som annars förskjuter hela modellen från sin logiska position.
+export function resetContainerTransforms(root) {
+  const resetOne = (obj) => {
+    if (!obj.isBone && !obj.isMesh && !obj.isSkinnedMesh) {
+      obj.position.set(0, 0, 0);
+      obj.rotation.set(0, 0, 0);
+      obj.scale.set(1, 1, 1);
+    }
+  };
+  resetOne(root);
+  root.traverse(resetOne);
+  root.updateMatrixWorld(true);
+}
+
 // Laddar en utrustnings-GLB (typ rustning) och rebindar dess skinned meshes
 // till värdens skelett genom att matcha bone-namn. Returnerar en Group som
 // innehåller alla armor-meshes - toggla synlighet via group.visible.
 //
 // Hanterar armor-modeller som är authorade med en root-translation (typ
-// shadow-rustningen vid x=-55) genom att nollställa armor-rotens position
-// och räkna om boneInverses från armorens egna bones (som alltid är i
-// bind pose eftersom inget animerar dem) - då matchar bind pose host-rigen
-// vid origin oavsett authoring-position.
+// shadow-rustningen vid x=-55.6) genom att nollställa container-transforms
+// och räkna om boneInverses från armorens egna bones (alltid i bind pose
+// eftersom inget animerar dem). Då matchar bind pose host-rigen vid
+// origin oavsett authoring-position.
 export async function loadArmorOntoSkeleton(url, hostRoot) {
   const { root: armorRoot } = await cloneModel(url);
-  armorRoot.position.set(0, 0, 0);
-  armorRoot.rotation.set(0, 0, 0);
-  armorRoot.scale.set(1, 1, 1);
-  armorRoot.updateMatrixWorld(true);
+  resetContainerTransforms(armorRoot);
 
   const group = new THREE.Group();
   group.visible = false;

@@ -59,10 +59,12 @@ export class CharacterPreview {
       if (handR) {
         this._attach('/models/sword.glb', handR, 'sword');
         this._attach('/models/axe.glb', handR, 'axe');
+        this._attach('/models/shadow_sword.glb', handR, 'shadowSword', { boostEmissive: true });
       }
       if (handL) {
         this._attach('/models/bow.glb', handL, 'bow');
         this._attach('/models/shield.glb', handL, 'shield');
+        this._attach('/models/shadow_shield.glb', handL, 'shadowShield', { boostEmissive: true });
       }
       loadArmorOntoSkeleton('/models/armor_silver.glb', root).then((g) => {
         this.armorGroup = g;
@@ -75,15 +77,24 @@ export class CharacterPreview {
     }
   }
 
-  async _attach(url, bone, key) {
+  async _attach(url, bone, key, opts = {}) {
     const { root } = await cloneModel(url);
-    for (const name of ['Weapon_Sword', 'Weapon_Bow', 'Weapon_Axe', 'Weapon_Shield']) {
-      const obj = root.getObjectByName(name);
-      if (obj) {
-        obj.position.set(0, 0, 0);
-        obj.rotation.set(0, 0, 0);
-        break;
+    let weaponNode = null;
+    root.traverse((obj) => {
+      if (!weaponNode && obj.name && obj.name.startsWith('Weapon_')) {
+        weaponNode = obj;
       }
+    });
+    if (weaponNode) {
+      weaponNode.position.set(0, 0, 0);
+      weaponNode.rotation.set(0, 0, 0);
+    }
+    if (opts.boostEmissive) {
+      root.traverse((m) => {
+        if (m.isMesh && m.material && m.material.emissive) {
+          m.material.emissiveIntensity = (m.material.emissiveIntensity || 1) * 2.5;
+        }
+      });
     }
     bone.add(root);
     root.visible = false;
@@ -92,13 +103,15 @@ export class CharacterPreview {
 
   _refreshEquipped() {
     const eq = this.player?.equipped || {};
-    if (this.weapons.sword) this.weapons.sword.visible = !!eq.sword;
+    const shadow = !!this.player?.forceShadowArmor;
+    if (this.weapons.sword) this.weapons.sword.visible = !shadow && !!eq.sword;
+    if (this.weapons.shadowSword) this.weapons.shadowSword.visible = shadow && !!eq.sword;
     if (this.weapons.bow) this.weapons.bow.visible = !!eq.bow;
-    if (this.weapons.shield) this.weapons.shield.visible = !!eq.shield;
+    if (this.weapons.shield) this.weapons.shield.visible = !shadow && !!eq.shield;
+    if (this.weapons.shadowShield) this.weapons.shadowShield.visible = shadow && !!eq.shield;
     if (this.weapons.axe) this.weapons.axe.visible = false;
-    const forceShadow = !!this.player?.forceShadowArmor;
-    if (this.shadowArmorGroup) this.shadowArmorGroup.visible = forceShadow;
-    if (this.armorGroup) this.armorGroup.visible = !forceShadow && !!eq.armor;
+    if (this.shadowArmorGroup) this.shadowArmorGroup.visible = shadow;
+    if (this.armorGroup) this.armorGroup.visible = !shadow && !!eq.armor;
   }
 
   start() {
