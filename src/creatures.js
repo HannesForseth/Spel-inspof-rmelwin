@@ -716,71 +716,106 @@ export class Wolf extends Creature {
     this.campRadius = campRadius;
 
     this.group = new THREE.Group();
-    const furMat = new THREE.MeshStandardMaterial({ color: 0x424242 });
-    const bellyMat = new THREE.MeshStandardMaterial({ color: 0x6d6d6d });
-
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 1.2), furMat);
-    body.position.y = 0.7;
-    body.castShadow = true;
-    this.group.add(body);
-
-    const belly = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 1.0), bellyMat);
-    belly.position.y = 0.5;
-    this.group.add(belly);
-
-    // Hals + huvud
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), furMat);
-    neck.position.set(0, 0.85, 0.6);
-    this.group.add(neck);
-
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.55), furMat);
-    head.position.set(0, 0.95, 0.95);
-    head.castShadow = true;
-    this.group.add(head);
-
-    // Nos
-    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, 0.25), bellyMat);
-    snout.position.set(0, 0.85, 1.25);
-    this.group.add(snout);
-
-    // Öron
-    for (const sign of [-1, 1]) {
-      const ear = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.2, 4), furMat);
-      ear.position.set(sign * 0.13, 1.22, 0.85);
-      this.group.add(ear);
-    }
-
-    // Lysande gula ögon (skrämmande på natten)
-    const eyeMat = new THREE.MeshStandardMaterial({
-      color: 0xfff176,
-      emissive: 0xfff176,
-      emissiveIntensity: 0.8,
-    });
-    const le = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.02), eyeMat);
-    le.position.set(-0.1, 1.0, 1.21);
-    this.group.add(le);
-    const re = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.02), eyeMat);
-    re.position.set(0.1, 1.0, 1.21);
-    this.group.add(re);
-
-    // Ben
-    const legGeo = new THREE.BoxGeometry(0.12, 0.5, 0.12);
-    for (const [x, z] of [[-0.18, 0.4], [0.18, 0.4], [-0.18, -0.4], [0.18, -0.4]]) {
-      const leg = new THREE.Mesh(legGeo, furMat);
-      leg.position.set(x, 0.25, z);
-      leg.castShadow = true;
-      this.group.add(leg);
-    }
-
-    // Svans
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.5), furMat);
-    tail.position.set(0, 0.7, -0.7);
-    tail.rotation.x = -0.4;
-    this.group.add(tail);
-
     this.group.position.copy(position);
     scene.add(this.group);
+
+    this.mixer = null;
+    this.actions = null;
+    this.currentActionName = null;
+    this._attackAnimTime = 0;
+    this._deathHideDelay = 0;
+    this._loadModel();
   }
+
+  die() {
+    this.alive = false;
+    this.respawnTimer = 0;
+    this._deathHideDelay = 1.5;
+  }
+
+  async _loadModel() {
+    try {
+      const { root, mixer, actions } = await cloneModel('/models/wolf.glb');
+      this.group.add(root);
+      this.mixer = mixer;
+      this.actions = actions;
+      this._rootBone = root.getObjectByName('root') || null;
+      this._hipsBone = root.getObjectByName('hips') || null;
+      this._rootBoneRest = this._rootBone
+        ? this._rootBone.position.clone()
+        : null;
+      this._hipsBoneRest = this._hipsBone
+        ? this._hipsBone.position.clone()
+        : null;
+      this._playAction('Wolf_Idle');
+    } catch (err) {
+      console.warn('Wolf: GLB kunde inte laddas', err);
+    }
+  }
+
+  _playAction(name, fadeTime = 0.15, opts = {}) {
+    if (!this.actions || !this.actions[name]) return;
+    if (this.currentActionName === name && !opts.force) return;
+
+    const next = this.actions[name];
+    const prev = this.currentActionName ? this.actions[this.currentActionName] : null;
+
+    next.reset();
+    if (opts.loop === false) {
+      next.loop = THREE.LoopOnce;
+      next.clampWhenFinished = true;
+    } else {
+      next.loop = THREE.LoopRepeat;
+      next.clampWhenFinished = false;
+    }
+    next.fadeIn(fadeTime).play();
+    if (prev) prev.fadeOut(fadeTime);
+
+    this.currentActionName = name;
+  }
+
+  update(dt, playerPos) {
+    super.update(dt, playerPos);
+
+    if (this.mixer) {
+      this.mixer.update(dt);
+      if (this._rootBone && this._rootBoneRest) {
+        this._rootBone.position.copy(this._rootBoneRest);
+      }
+      if (this._hipsBone && this._hipsBoneRest) {
+        this._hipsBone.position.x = this._hipsBoneRest.x;
+        this._hipsBone.position.z = this._hipsBoneRest.z;
+      }
+      this._updateAnimation(dt);
+    }
+
+    if (!this.alive && this._deathHideDelay > 0) {
+      this._deathHideDelay -= dt;
+      if (this._deathHideDelay <= 0) this.group.visible = false;
+    }
+  }
+
+  _updateAnimation(dt) {
+    if (!this.alive) {
+      this._playAction('Wolf_Death', 0.15, { loop: false });
+      return;
+    }
+    if (this._attackAnimTime > 0) {
+      this._attackAnimTime -= dt;
+      return;
+    }
+    if (this.hitFlashTimer > 0) {
+      this._playAction('Wolf_Hit', 0.05, { loop: false });
+      return;
+    }
+    const speed = Math.hypot(this.velocity.x, this.velocity.z);
+    if (speed > this.chaseSpeed * 0.6) this._playAction('Wolf_Run');
+    else if (speed > 0.4) this._playAction('Wolf_Walk');
+    else this._playAction('Wolf_Idle');
+  }
+
+  // Vargar respawnar inte automatiskt - hanteras av spawner i game.js
+  respawn() {}
 
   _decide(dt, playerPos) {
     this.attackCooldown = Math.max(0, this.attackCooldown - dt);
@@ -859,6 +894,9 @@ export class Wolf extends Creature {
     const dist = Math.sqrt(dx * dx + dz * dz);
     if (dist < this.attackRange) {
       this.attackCooldown = this.attackInterval;
+      const anim = Math.random() < 0.5 ? 'Wolf_Attack_Bite' : 'Wolf_Attack_Claw';
+      this._playAction(anim, 0.06, { loop: false, force: true });
+      this._attackAnimTime = 0.55;
       return true;
     }
     return false;
@@ -867,7 +905,4 @@ export class Wolf extends Creature {
   getLoot() {
     return [{ type: 'hide', amount: 1 }, { type: 'meat', amount: 1 }];
   }
-
-  // Vargar respawnar inte automatiskt - hanteras av spawner i game.js
-  respawn() {}
 }
