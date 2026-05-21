@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 const loader = new GLTFLoader();
 const cache = new Map();
@@ -18,7 +19,7 @@ export function loadModel(url) {
 
 export async function cloneModel(url) {
   const gltf = await loadModel(url);
-  const root = gltf.scene.clone(true);
+  const root = cloneSkeleton(gltf.scene);
 
   root.traverse((obj) => {
     if (obj.isMesh || obj.isSkinnedMesh) {
