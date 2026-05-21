@@ -56,6 +56,8 @@ class Creature {
     this.alive = true;
     this.hp = this.maxHp;
     this._lootGiven = false;
+    this.hitFlashTimer = 0;
+    this.attackCooldown = 0;
     const angle = Math.random() * Math.PI * 2;
     const r = Math.random() * this.maxRoam;
     this.position.x = this.homePosition.x + Math.cos(angle) * r;

@@ -20,7 +20,7 @@ const JUMP_VELOCITY = 8;
 const TORSO_PIVOT_Y = 0.8;
 
 export class Player {
-  constructor(scene) {
+  constructor(scene, opts = {}) {
     this.scene = scene;
     this.position = new THREE.Vector3(0, 0, 0);
     this.facing = 0;
@@ -135,7 +135,9 @@ export class Player {
     this.currentActionName = null;
     this.hasShield = false;
     this.equipped = { sword: false, bow: false, shield: false, armor: false };
-    this.forceShadowArmor = false; // Sätts externt för t.ex. HannesF
+    // Sätts via opts (typ HannesF) eller externt senare - måste vara satt
+    // innan _loadGLB hinner trigga första visibility-check
+    this.forceShadowArmor = !!opts.forceShadowArmor;
     this._loadGLB();
   }
 

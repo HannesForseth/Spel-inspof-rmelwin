@@ -150,6 +150,20 @@ export class CharacterPreview {
 
   dispose() {
     this.stop();
+    const disposeTree = (g) => {
+      if (!g) return;
+      g.traverse((obj) => {
+        if (obj.geometry?.dispose) obj.geometry.dispose();
+        if (obj.material) {
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          for (const m of mats) m.dispose?.();
+        }
+      });
+    };
+    disposeTree(this.armorGroup);
+    disposeTree(this.shadowArmorGroup);
+    for (const w of Object.values(this.weapons)) disposeTree(w);
+    disposeTree(this.model);
     this.renderer.dispose();
   }
 }

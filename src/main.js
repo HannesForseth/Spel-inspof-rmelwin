@@ -13,12 +13,10 @@ async function boot() {
   mountUserHud(session.user);
 
   const container = document.getElementById('game-container');
-  const game = new Game(container);
-  // HannesF får shadow-rustning permanent
+  // HannesF får shadow-rustning permanent - skickas via constructor så
+  // flaggan är satt innan första visibility-check körs
   const username = (getUsernameFromUser(session.user) ?? '').toLowerCase();
-  if (username === 'hannesf') {
-    game.player.forceShadowArmor = true;
-  }
+  const game = new Game(container, { forceShadowArmor: username === 'hannesf' });
   game.start();
   window.game = game;
 

@@ -21,8 +21,9 @@ const INTERACT_RANGE = 3.0;
 const SWORD_RANGE = 3.0;
 
 export class Game {
-  constructor(container) {
+  constructor(container, opts = {}) {
     this.container = container;
+    this.opts = opts;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87ceeb);
@@ -60,7 +61,9 @@ export class Game {
     this.inventory = new Inventory();
     this.upgrades = new Upgrades();
     this.world = new World(this.scene);
-    this.player = new Player(this.scene);
+    this.player = new Player(this.scene, {
+      forceShadowArmor: !!opts.forceShadowArmor,
+    });
     this.controls = new Controls();
     this.dayNight = new DayNight(this.scene, this.sun, this.ambient);
     this.ui = new UI(this);
