@@ -293,10 +293,11 @@ export class World {
     this.scene.add(torchPole);
 
     // Lösa stenar runt utsidan
+    const looseStoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.95 });
     for (let i = 0; i < 10; i++) {
       const stone = new THREE.Mesh(
         new THREE.DodecahedronGeometry(0.5 + Math.random() * 0.7, 0),
-        stoneMat,
+        looseStoneMat,
       );
       const angle = Math.random() * Math.PI * 2;
       const r = 13 + Math.random() * 4;
