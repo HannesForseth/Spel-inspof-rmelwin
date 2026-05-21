@@ -1,5 +1,6 @@
 import { RECIPES, BUYABLES } from './upgrades.js';
 import { MATERIAL_TYPES } from './inventory.js';
+import { CharacterPreview } from './characterPreview.js';
 
 const ITEM_LABELS = {
   wood: '🪵 Trä',
@@ -180,8 +181,25 @@ export class UI {
   toggleCharacterPanel() {
     this.characterOpen = !this.characterOpen;
     this.charPanelEl.classList.toggle('hidden', !this.characterOpen);
-    if (this.characterOpen) this.renderCharacterPanel();
+    if (this.characterOpen) {
+      this.renderCharacterPanel();
+      this._ensurePreview();
+      this.preview?.start();
+    } else {
+      this.preview?.stop();
+    }
     if (this.characterOpen && this.bagOpen) this.toggleBag();
+  }
+
+  _ensurePreview() {
+    if (this.preview) return;
+    const canvas = document.getElementById('char-preview-canvas');
+    if (!canvas) return;
+    this.preview = new CharacterPreview(
+      canvas,
+      this.game.upgrades,
+      this.game.player,
+    );
   }
 
   toggleBag() {
@@ -260,7 +278,11 @@ export class UI {
     const inv = this.game.inventory;
     const upg = this.game.upgrades;
 
-    let html = `<h3>Stats</h3>`;
+    let html = `
+      <div class="char-preview-wrap">
+        <canvas id="char-preview-canvas" width="300" height="260"></canvas>
+      </div>
+      <h3>Stats</h3>`;
     html += `<div class="stat-row"><span>❤️ Hälsa</span><b>${Math.ceil(player.hp)} / ${player.maxHp}</b></div>`;
     html += `<div class="stat-row"><span>💨 Andning</span><b>${player.breath.toFixed(1)} / ${player.maxBreath}</b></div>`;
     html += `<div class="stat-row"><span>⚔️ Svärdsskada</span><b>${upg.getSwordDamage()}</b></div>`;
@@ -540,7 +562,10 @@ export class UI {
     }
 
     if (recipe.grantUpgrade) {
-      this.game.upgrades.grantUpgrade(recipe.grantUpgrade);
+      const ok = this.game.upgrades.grantUpgrade(recipe.grantUpgrade);
+      if (ok && (recipe.grantUpgrade === 'sword' || recipe.grantUpgrade === 'bow')) {
+        this.game.controls.selectedWeapon = recipe.grantUpgrade;
+      }
       this.showToast(`🎉 Tillverkade ${recipe.label}!`);
     } else {
       for (const [type, n] of Object.entries(recipe.output)) {

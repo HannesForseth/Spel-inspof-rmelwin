@@ -595,6 +595,7 @@ export class World {
       if (this._inPond(cx, cz, 8)) continue;
       if (this._inCamp(cx, cz, 6)) continue;
       if (this._inCave(cx, cz, 8)) continue;
+      if (this._inArena(cx, cz, 12)) continue;
       if (new THREE.Vector2(cx, cz).length() < 18) continue;
       // Inte för nära varandra
       let nearOther = false;
@@ -629,6 +630,7 @@ export class World {
       if (this._inCamp(x, z, 2)) continue;
       if (this._inCave(x, z, 4)) continue;
       if (this._inTrollLair(x, z, 2)) continue;
+      if (this._inArena(x, z, 4)) continue;
       if (new THREE.Vector2(x, z).length() < 6) continue;
       // Undvik stig-banden
       if (Math.abs(x) < 1.5 && z < 4 && z > -3) continue;
@@ -659,6 +661,7 @@ export class World {
       if (this._inPond(x, z, 2)) continue;
       if (this._inCamp(x, z, 2)) continue;
       if (this._inCave(x, z, 10)) continue;
+      if (this._inArena(x, z, 4)) continue;
       if (new THREE.Vector2(x, z).length() < 5) continue;
       const bush = new Bush(this.scene, new THREE.Vector3(x, 0, z));
       this.interactables.push(bush);
@@ -693,6 +696,13 @@ export class World {
     const dx = x - this.trollLairCenter.x;
     const dz = z - this.trollLairCenter.z;
     return Math.sqrt(dx * dx + dz * dz) < 9 + margin;
+  }
+
+  _inArena(x, z, margin = 0) {
+    if (!this.arenaCenter) return false;
+    const dx = x - this.arenaCenter.x;
+    const dz = z - this.arenaCenter.z;
+    return Math.sqrt(dx * dx + dz * dz) < 30 + margin;
   }
 
   isInCamp(position) {
