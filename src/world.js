@@ -83,6 +83,13 @@ export class World {
       this.scene.add(terrain);
       this.blenderTerrain = terrain;
       this._snapWorldToTerrain(); // sätter _terrainReady=true
+      // Ta bort fallback-marken nu när terrängen är på plats
+      if (this._safetyGround) {
+        this.scene.remove(this._safetyGround);
+        this._safetyGround.geometry.dispose();
+        this._safetyGround.material.dispose();
+        this._safetyGround = null;
+      }
     } catch (e) {
       console.warn('[World] world_terrain.glb kunde inte laddas', e);
     }
@@ -202,16 +209,18 @@ export class World {
 
   createGround() {
     // Den procedurella platta marken är ersatt av world_terrain.glb.
-    // Som backup innan terrängen laddas hänger en stor mörkbrun "void"
-    // långt under så himlen inte syns igenom på första frame.
+    // Som backup innan terrängen laddas hänger en stor mörkgrön "fallback"
+    // vid y=0 så himlen inte syns igenom första frame. Tas bort när
+    // terrängen laddats.
     const safety = new THREE.Mesh(
       new THREE.PlaneGeometry(WORLD_BOUND * 4, WORLD_BOUND * 4, 1, 1),
-      new THREE.MeshStandardMaterial({ color: 0x2a2418 }),
+      new THREE.MeshStandardMaterial({ color: 0x4a7c3e }),
     );
     safety.rotation.x = -Math.PI / 2;
-    safety.position.y = -8;
+    safety.position.y = -0.1;
     safety.receiveShadow = true;
     this.scene.add(safety); // ej via _addToScene - vi vill INTE snappa den
+    this._safetyGround = safety;
   }
 
   // Slät, organisk sjö via CatmullRom-kurva genom anchors

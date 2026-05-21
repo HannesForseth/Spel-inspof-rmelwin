@@ -39,7 +39,7 @@ export class Arrow {
     group.add(fletch);
 
     group.position.copy(fromPos);
-    group.position.y = 1.5;
+    // fromPos är redan player y + 1.5 från Game._aboveSource, ingen override
     this.group = group;
     scene.add(group);
   }
@@ -56,7 +56,8 @@ export class Arrow {
     let targetPos;
     if (this.target && this.target.alive) {
       targetPos = this.target.position.clone();
-      targetPos.y = 1.5;
+      // Sikta på målets bröstkorg (relativt dess terräng-y, inte absolut)
+      targetPos.y = this.target.position.y + 1;
     } else {
       // Mål dödat eller borta — fortsätt rakt fram
       this._destroy();

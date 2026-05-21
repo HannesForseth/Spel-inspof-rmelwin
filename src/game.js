@@ -481,7 +481,7 @@ export class Game {
           const blockTxt = blocked > 0 ? ` (🛡️ -${blocked})` : '';
           this.ui.showToast(`💢 ${c.label} attackerade dig! -${reduced} ❤️${blockTxt}`);
           this.ui.flashDamage();
-          this.effects.push(new HitEffect(this.scene, this.player.position.clone().setY(1.5), 0xf44336));
+          this.effects.push(new HitEffect(this.scene, this._aboveSource(this.player.position, 1.5), 0xf44336));
           this._triggerShake(0.45, 0.4);
           vibrate([60, 30, 40]);
         }
@@ -512,7 +512,15 @@ export class Game {
     this.world.update(dt);
 
     // Multiplayer: skicka egen position, uppdatera andra spelare
-    for (const rp of this.remotePlayers.values()) rp.update(dt);
+    for (const rp of this.remotePlayers.values()) {
+      rp.update(dt);
+      // Snappa även fjärrspelare till lokal terräng-y
+      if (rp.group) {
+        const ty = this.world.getTerrainY(rp.position.x, rp.position.z, 0);
+        rp.group.position.y = ty;
+        rp.position.y = ty;
+      }
+    }
     this.inputSendTimer += dt;
     if (this.inputSendTimer >= INPUT_SEND_INTERVAL) {
       this.inputSendTimer = 0;
@@ -582,7 +590,7 @@ export class Game {
         }
         for (const t of targets) {
           const killed = t.takeDamage(dmg, this.player.position);
-          this.effects.push(new HitEffect(this.scene, t.position.clone().setY(1), 0xffeb3b));
+          this.effects.push(new HitEffect(this.scene, this._aboveSource(t.position, 1), 0xffeb3b));
           if (killed) this._onCreatureKilled(t);
         }
         this._triggerShake(0.25, 0.3);
@@ -610,7 +618,7 @@ export class Game {
         if (target) {
           const arrow = new Arrow(
             this.scene,
-            this.player.position.clone().setY(1.5),
+            this._aboveSource(this.player.position, 1.5),
             target,
             dmg,
           );
@@ -670,6 +678,13 @@ export class Game {
       targets.push(c);
     }
     return targets;
+  }
+
+  // Returnerar source-positionen lyfte med dy. Används för hit-effekter
+  // och projektiler så de hamnar relativt sourcens y (vilket nu är
+  // terräng-y) istället för absolut 0+dy.
+  _aboveSource(source, dy) {
+    return new THREE.Vector3(source.x, source.y + dy, source.z);
   }
 
   _triggerShake(duration, intensity) {
@@ -887,7 +902,7 @@ export class Game {
     for (const t of targets) {
       const killed = t.takeDamage(spell.damage, origin);
       this.effects.push(
-        new HitEffect(this.scene, t.position.clone().setY(1), spell.color),
+        new HitEffect(this.scene, this._aboveSource(t.position, 1), spell.color),
       );
       if (killed) this._onCreatureKilled(t);
     }
