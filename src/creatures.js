@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { cloneModel } from './models.js';
 
 // Bas-klass för alla djur. Hanterar AI-state, rörelse, skada och visualisering.
 class Creature {
@@ -326,57 +327,73 @@ export class Bear extends Creature {
     this.maxRoam = 6;
 
     this.group = new THREE.Group();
-    const furMat = new THREE.MeshStandardMaterial({ color: 0x4e2a16 });
-
-    // Kropp
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 2.0), furMat);
-    body.position.y = 1.4;
-    body.castShadow = true;
-    this.group.add(body);
-
-    // Huvud
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), furMat);
-    head.position.set(0, 1.9, 1.15);
-    head.castShadow = true;
-    this.group.add(head);
-
-    // Nos
-    const snout = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45, 0.4, 0.45),
-      new THREE.MeshStandardMaterial({ color: 0x6d4226 }),
-    );
-    snout.position.set(0, 1.75, 1.55);
-    this.group.add(snout);
-
-    // Öron
-    const earGeo = new THREE.BoxGeometry(0.2, 0.2, 0.15);
-    for (const sign of [-1, 1]) {
-      const ear = new THREE.Mesh(earGeo, furMat);
-      ear.position.set(sign * 0.3, 2.3, 1.0);
-      this.group.add(ear);
-    }
-
-    // Ögon
-    const eyeMat = new THREE.MeshStandardMaterial({ color: 0xff5722 });
-    const le = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.02), eyeMat);
-    le.position.set(-0.18, 2.0, 1.6);
-    this.group.add(le);
-    const re = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.02), eyeMat);
-    re.position.set(0.18, 2.0, 1.6);
-    this.group.add(re);
-
-    // Ben
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x3e1f10 });
-    const legGeo = new THREE.BoxGeometry(0.35, 0.85, 0.35);
-    for (const [x, z] of [[-0.5, 0.7], [0.5, 0.7], [-0.5, -0.7], [0.5, -0.7]]) {
-      const leg = new THREE.Mesh(legGeo, legMat);
-      leg.position.set(x, 0.4, z);
-      leg.castShadow = true;
-      this.group.add(leg);
-    }
-
     this.group.position.copy(position);
     scene.add(this.group);
+
+    this.mixer = null;
+    this.actions = null;
+    this.currentActionName = null;
+    this._attackAnimTime = 0;
+    this._loadModel();
+  }
+
+  async _loadModel() {
+    try {
+      const { root, mixer, actions } = await cloneModel('/models/bjorn_boss.glb');
+      this.group.add(root);
+      this.mixer = mixer;
+      this.actions = actions;
+      this._playAction('Idle');
+    } catch (err) {
+      console.warn('Bear: GLB kunde inte laddas', err);
+    }
+  }
+
+  _playAction(name, fadeTime = 0.2, opts = {}) {
+    if (!this.actions || !this.actions[name]) return;
+    if (this.currentActionName === name && !opts.force) return;
+
+    const next = this.actions[name];
+    const prev = this.currentActionName ? this.actions[this.currentActionName] : null;
+
+    next.reset();
+    if (opts.loop === false) {
+      next.loop = THREE.LoopOnce;
+      next.clampWhenFinished = true;
+    } else {
+      next.loop = THREE.LoopRepeat;
+      next.clampWhenFinished = false;
+    }
+    next.fadeIn(fadeTime).play();
+    if (prev) prev.fadeOut(fadeTime);
+
+    this.currentActionName = name;
+  }
+
+  update(dt, playerPos) {
+    super.update(dt, playerPos);
+
+    if (this.mixer) {
+      this.mixer.update(dt);
+      this._updateAnimation(dt);
+    }
+  }
+
+  _updateAnimation(dt) {
+    if (!this.alive) {
+      this._playAction('Death', 0.15, { loop: false });
+      return;
+    }
+    if (this._attackAnimTime > 0) {
+      this._attackAnimTime -= dt;
+      return;
+    }
+    if (this.hitFlashTimer > 0) {
+      this._playAction('Hit', 0.05, { loop: false });
+      return;
+    }
+    const speed = Math.hypot(this.velocity.x, this.velocity.z);
+    this._playAction(speed > 0.5 ? 'Walk' : 'Idle');
   }
 
   _decide(dt, playerPos) {
@@ -430,6 +447,9 @@ export class Bear extends Creature {
     const dist = Math.sqrt(dx * dx + dz * dz);
     if (dist < this.attackRange) {
       this.attackCooldown = this.attackInterval;
+      const anim = Math.random() < 0.5 ? 'Attack_Slam' : 'Attack_Swipe';
+      this._playAction(anim, 0.08, { loop: false, force: true });
+      this._attackAnimTime = 0.8;
       return true;
     }
     return false;
