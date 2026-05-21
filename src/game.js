@@ -11,6 +11,7 @@ import { Rabbit, Deer, Bear, Wolf, Troll } from './creatures.js';
 import { Arrow, HitEffect, findNearestTarget } from './combat.js';
 import { net } from './net.js';
 import { RemotePlayer } from './remotePlayer.js';
+import { isTouchDevice, vibrate } from './mobileControls.js';
 
 const INPUT_SEND_HZ = 20;
 const INPUT_SEND_INTERVAL = 1 / INPUT_SEND_HZ;
@@ -33,12 +34,23 @@ export class Game {
       500,
     );
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.isMobile = isTouchDevice();
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.isMobile });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(
+      this.isMobile
+        ? Math.min(window.devicePixelRatio, 1.25)
+        : Math.min(window.devicePixelRatio, 2),
+    );
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = this.isMobile
+      ? THREE.BasicShadowMap
+      : THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
+
+    if (this.isMobile) {
+      this.scene.fog = new THREE.Fog(0x87ceeb, 45, 130);
+    }
 
     this._setupLights();
     this._setupCamera();
@@ -407,8 +419,12 @@ export class Game {
           this.ui.flashDamage();
           this.effects.push(new HitEffect(this.scene, this.player.position.clone().setY(1.5), 0xf44336));
           this._triggerShake(0.45, 0.4);
+          vibrate([60, 30, 40]);
         }
-        if (!this.player.isAlive()) this._playerDied();
+        if (!this.player.isAlive()) {
+          this._playerDied();
+          vibrate([0, 100, 50, 200]);
+        }
       }
     }
 
@@ -480,6 +496,15 @@ export class Game {
     if (this.player.swinging) return; // ingen spam av attacker
     if (this.player.isChopping) return;
 
+    if (this.isMobile && weapon === 'sword') {
+      const target = findNearestTarget(this.player.position, this.creatures, SWORD_RANGE * 1.6);
+      if (target) {
+        const dx = target.position.x - this.player.position.x;
+        const dz = target.position.z - this.player.position.z;
+        this.player.facing = Math.atan2(dx, dz);
+      }
+    }
+
     if (weapon === 'sword') {
       const dmg = this.upgrades.getSwordDamage();
       if (dmg <= 0) return;
@@ -488,6 +513,7 @@ export class Game {
         const targets = this._findSwordTargets();
         if (targets.length === 0) {
           this._triggerShake(0.06, 0.06);
+          vibrate(15);
           return;
         }
         for (const t of targets) {
@@ -496,6 +522,7 @@ export class Game {
           if (killed) this._onCreatureKilled(t);
         }
         this._triggerShake(0.25, 0.3);
+        vibrate([40, 20, 30]);
       });
     } else if (weapon === 'bow') {
       const dmg = this.upgrades.getBowDamage();

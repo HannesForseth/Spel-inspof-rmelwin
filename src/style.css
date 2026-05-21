@@ -691,28 +691,33 @@ body {
   top: 0;
   right: 0;
   width: 55%;
-  height: 60%;
+  height: 55%;
   pointer-events: auto;
 }
 
 #mobile-joystick-zone {
   position: absolute;
   left: 0;
-  bottom: 0;
+  top: 0;
   width: 45%;
-  height: 60%;
+  height: 100%;
   pointer-events: auto;
 }
 
 #mobile-joystick-base {
-  position: absolute;
-  left: 90px;
-  bottom: 110px;
-  width: 130px;
-  height: 130px;
+  position: fixed;
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.3);
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+#mobile-joystick-base.hidden {
+  opacity: 0;
 }
 
 #mobile-joystick-knob {
@@ -720,32 +725,44 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 60px;
-  height: 60px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.55);
-  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.65);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+#mobile-joystick-ring {
+  position: absolute;
+  inset: -6px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
   pointer-events: none;
 }
 
 #mobile-action-grid {
   position: absolute;
-  right: 16px;
-  bottom: 24px;
+  right: 14px;
+  bottom: 20px;
   display: grid;
-  grid-template-columns: repeat(4, 56px);
-  gap: 8px;
+  grid-template-columns: repeat(3, 64px);
+  grid-template-rows: repeat(3, 64px);
+  gap: 10px;
   pointer-events: none;
+  align-items: center;
+  justify-items: center;
 }
 
 .mobile-btn {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.35);
   color: white;
-  font-size: 22px;
+  font-size: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -753,26 +770,61 @@ body {
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.05s, background 0.1s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .mobile-btn.pressed {
   transform: scale(0.9);
-  background: rgba(76, 175, 80, 0.6);
+  background: rgba(76, 175, 80, 0.65);
 }
 
 .mobile-btn.locked {
-  background: rgba(76, 175, 80, 0.6);
-  border-color: rgba(255, 255, 255, 0.8);
+  background: rgba(76, 175, 80, 0.65);
+  border-color: rgba(255, 255, 255, 0.85);
 }
 
 .mobile-btn-attack {
-  width: 76px;
-  height: 76px;
-  background: rgba(244, 67, 54, 0.55);
-  font-size: 28px;
-  grid-column: 4;
-  grid-row: 1 / span 2;
-  align-self: center;
+  width: 92px;
+  height: 92px;
+  background: rgba(244, 67, 54, 0.65);
+  border-color: rgba(255, 255, 255, 0.5);
+  font-size: 36px;
+  grid-column: 3;
+  grid-row: 3;
+}
+
+.mobile-btn-interact {
+  background: rgba(33, 150, 243, 0.55);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.mobile-btn-jump {
+  background: rgba(255, 193, 7, 0.55);
+  font-size: 32px;
+}
+
+.mobile-corner-btn {
+  position: absolute;
+  top: 54px;
+  right: 8px;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-corner-btn.active {
+  background: rgba(76, 175, 80, 0.6);
 }
 
 body.is-mobile #controls-hint {

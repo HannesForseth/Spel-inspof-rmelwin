@@ -10,6 +10,12 @@ export class Controls {
     this.toggleCharacterQueued = false;
     this.selectedWeapon = null; // 'sword' | 'bow' | null
 
+    // Virtuell axis (för mobil joystick). x/z -1..1, magnitude 0..1
+    this.virtualAxis = { x: 0, z: 0, magnitude: 0 };
+    this.virtualRun = false;
+    this.virtualInteractHeld = false;
+    this.virtualAttackHeld = false;
+
     window.addEventListener('keydown', (e) => {
       const k = e.key.toLowerCase();
       // Förhindra att mellanslag scrollar sidan
@@ -39,11 +45,11 @@ export class Controls {
   }
 
   isInteractPressed() {
-    return this.isDown('e');
+    return this.isDown('e') || this.virtualInteractHeld;
   }
 
   isRunning() {
-    return this.isDown('shift');
+    return this.isDown('shift') || this.virtualRun;
   }
 
   consumeJump() {
@@ -89,16 +95,24 @@ export class Controls {
   getMovementVector(cameraAngle) {
     let x = 0;
     let z = 0;
-    if (this.isDown('w') || this.isDown('arrowup')) z -= 1;
-    if (this.isDown('s') || this.isDown('arrowdown')) z += 1;
-    if (this.isDown('a') || this.isDown('arrowleft')) x -= 1;
-    if (this.isDown('d') || this.isDown('arrowright')) x += 1;
+
+    if (this.virtualAxis.magnitude > 0.05) {
+      x = this.virtualAxis.x;
+      z = this.virtualAxis.z;
+    } else {
+      if (this.isDown('w') || this.isDown('arrowup')) z -= 1;
+      if (this.isDown('s') || this.isDown('arrowdown')) z += 1;
+      if (this.isDown('a') || this.isDown('arrowleft')) x -= 1;
+      if (this.isDown('d') || this.isDown('arrowright')) x += 1;
+
+      const len = Math.sqrt(x * x + z * z);
+      if (len > 1) {
+        x /= len;
+        z /= len;
+      }
+    }
 
     if (x === 0 && z === 0) return new THREE.Vector3(0, 0, 0);
-
-    const len = Math.sqrt(x * x + z * z);
-    x /= len;
-    z /= len;
 
     const sin = Math.sin(cameraAngle);
     const cos = Math.cos(cameraAngle);
