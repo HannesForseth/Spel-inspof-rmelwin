@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { cloneModel } from './models.js';
+import { cloneModel, loadArmorOntoSkeleton } from './models.js';
 
 export class CharacterPreview {
   constructor(canvas, upgrades, player) {
@@ -64,6 +64,9 @@ export class CharacterPreview {
         this._attach('/models/bow.glb', handL, 'bow');
         this._attach('/models/shield.glb', handL, 'shield');
       }
+      loadArmorOntoSkeleton('/models/armor_silver.glb', root).then((g) => {
+        this.armorGroup = g;
+      });
     } catch (err) {
       console.warn('[CharacterPreview] model error', err);
     }
@@ -90,6 +93,7 @@ export class CharacterPreview {
     if (this.weapons.bow) this.weapons.bow.visible = !!eq.bow;
     if (this.weapons.shield) this.weapons.shield.visible = !!eq.shield;
     if (this.weapons.axe) this.weapons.axe.visible = false;
+    if (this.armorGroup) this.armorGroup.visible = !!eq.armor;
   }
 
   start() {

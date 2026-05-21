@@ -40,3 +40,28 @@ export async function cloneModel(url) {
 
   return { root, mixer, actions };
 }
+
+// Laddar en utrustnings-GLB (typ rustning) och rebindar dess skinned meshes
+// till värdens skelett genom att matcha bone-namn. Returnerar en Group som
+// innehåller alla armor-meshes - toggla synlighet via group.visible.
+export async function loadArmorOntoSkeleton(url, hostRoot) {
+  const { root: armorRoot } = await cloneModel(url);
+  const group = new THREE.Group();
+  group.visible = false;
+  hostRoot.add(group);
+
+  const skinned = [];
+  armorRoot.traverse((obj) => {
+    if (obj.isSkinnedMesh) skinned.push(obj);
+  });
+
+  for (const mesh of skinned) {
+    const newBones = mesh.skeleton.bones.map((bone) => {
+      return hostRoot.getObjectByName(bone.name) || bone;
+    });
+    const newSkeleton = new THREE.Skeleton(newBones, mesh.skeleton.boneInverses);
+    mesh.bind(newSkeleton, new THREE.Matrix4());
+    group.add(mesh);
+  }
+  return group;
+}

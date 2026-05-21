@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { cloneModel } from './models.js';
+import { cloneModel, loadArmorOntoSkeleton } from './models.js';
 
 // Färger inspirerade av Melwins koncept-ritning
 const SHIRT = 0x4caf50;
@@ -182,6 +182,9 @@ export class Player {
           this._glbShield = m;
         });
       }
+      loadArmorOntoSkeleton('/models/armor_silver.glb', root).then((g) => {
+        this._glbArmor = g;
+      });
     } catch (err) {
       console.warn('[Player] GLB kunde inte laddas, kvar med box-mesh', err);
     }
@@ -250,6 +253,9 @@ export class Player {
     if (this._glbShield) {
       this._glbShield.visible =
         this.equipped.shield && this.activeWeapon !== 'bow' && !this.isChopping;
+    }
+    if (this._glbArmor) {
+      this._glbArmor.visible = !!this.equipped.armor;
     }
 
     let next;

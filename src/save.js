@@ -15,6 +15,7 @@ export class Save {
         capacity: inventory.capacity,
       },
       upgrades: { ...upgrades.levels },
+      equipped: { ...player.equipped },
       player: {
         x: player.position.x,
         z: player.position.z,
@@ -37,6 +38,16 @@ export class Save {
       if (data.inventory) Object.assign(inventory, data.inventory);
       if (data.upgrades) Object.assign(upgrades.levels, data.upgrades);
       inventory.capacity = upgrades.getCapacity();
+      if (data.equipped) {
+        Object.assign(player.equipped, data.equipped);
+      } else {
+        // Äldre save utan equipped-state: equippa allt man äger
+        for (const key of ['sword', 'bow', 'shield', 'armor']) {
+          if (upgrades.levels[key] > 0 && key in player.equipped) {
+            player.equipped[key] = true;
+          }
+        }
+      }
       if (data.player) {
         player.position.x = data.player.x;
         player.position.z = data.player.z;

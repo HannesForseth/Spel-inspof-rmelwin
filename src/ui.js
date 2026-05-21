@@ -522,8 +522,13 @@ export class UI {
     this.shopContentEl.querySelectorAll('button[data-upgrade]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const key = btn.dataset.upgrade;
+        const wasOwned = upg.getLevel(key) > 0;
         if (upg.buy(key, inv)) {
           this.showToast(`${upg.getDefinition(key).label} ${upg.getLevel(key)}!`);
+          // Auto-equippa vid första köpet (level 0 → 1)
+          if (!wasOwned && key in this.game.player.equipped) {
+            this.game.player.equipped[key] = true;
+          }
           if ((key === 'sword' || key === 'bow') && upg.getLevel(key) === 1) {
             this.game.controls.selectedWeapon = key;
           }
