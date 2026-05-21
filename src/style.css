@@ -675,3 +675,189 @@ body {
 #user-hud .net-status.net-error {
   background: rgba(255, 80, 80, 0.3);
 }
+
+#mobile-controls {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+#mobile-camera-zone {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 55%;
+  height: 60%;
+  pointer-events: auto;
+}
+
+#mobile-joystick-zone {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 45%;
+  height: 60%;
+  pointer-events: auto;
+}
+
+#mobile-joystick-base {
+  position: absolute;
+  left: 90px;
+  bottom: 110px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+}
+
+#mobile-joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+}
+
+#mobile-action-grid {
+  position: absolute;
+  right: 16px;
+  bottom: 24px;
+  display: grid;
+  grid-template-columns: repeat(4, 56px);
+  gap: 8px;
+  pointer-events: none;
+}
+
+.mobile-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.05s, background 0.1s;
+}
+
+.mobile-btn.pressed {
+  transform: scale(0.9);
+  background: rgba(76, 175, 80, 0.6);
+}
+
+.mobile-btn.locked {
+  background: rgba(76, 175, 80, 0.6);
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.mobile-btn-attack {
+  width: 76px;
+  height: 76px;
+  background: rgba(244, 67, 54, 0.55);
+  font-size: 28px;
+  grid-column: 4;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+body.is-mobile #controls-hint {
+  display: none;
+}
+
+body.is-mobile #topbar {
+  top: 8px;
+  font-size: 13px;
+}
+
+body.is-mobile #title {
+  padding: 5px 10px;
+  font-size: 14px;
+}
+
+body.is-mobile #time-label {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+body.is-mobile #inventory {
+  top: 8px;
+  left: 8px;
+  font-size: 12px;
+  padding: 8px 10px;
+  min-width: 110px;
+  line-height: 1.5;
+}
+
+body.is-mobile #hp-bar-container {
+  bottom: 200px;
+  left: 8px;
+  min-width: 160px;
+  padding: 6px 10px;
+}
+
+body.is-mobile #weapon-hud {
+  display: none;
+}
+
+body.is-mobile #user-hud {
+  top: 8px;
+  right: 8px;
+  font-size: 12px;
+  padding: 5px 8px;
+  gap: 6px;
+}
+
+body.is-mobile #user-hud .net-status {
+  font-size: 10px;
+  padding: 2px 6px;
+}
+
+body.is-mobile #user-hud button {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+body.is-mobile #shop,
+body.is-mobile #character-panel {
+  max-width: 92vw;
+  max-height: 80vh;
+  font-size: 13px;
+}
+
+@media (max-width: 480px) {
+  #mobile-joystick-base {
+    left: 70px;
+    bottom: 90px;
+    width: 110px;
+    height: 110px;
+  }
+  .mobile-btn {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+  .mobile-btn-attack {
+    width: 66px;
+    height: 66px;
+    font-size: 24px;
+  }
+  #mobile-action-grid {
+    grid-template-columns: repeat(4, 50px);
+    bottom: 16px;
+  }
+}

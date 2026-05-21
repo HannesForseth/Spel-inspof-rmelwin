@@ -2,6 +2,7 @@ import { Game } from './game.js';
 import { getSession, getUsernameFromUser, logout, onAuthChange } from './auth.js';
 import { showLoginScreen } from './loginScreen.js';
 import { net } from './net.js';
+import { MobileControls, isTouchDevice } from './mobileControls.js';
 
 async function boot() {
   let session = await getSession();
@@ -15,6 +16,10 @@ async function boot() {
   const game = new Game(container);
   game.start();
   window.game = game;
+
+  if (isTouchDevice()) {
+    new MobileControls(game.controls, game);
+  }
 
   net.connect().then((ok) => {
     if (!ok) updateNetStatus('error');
