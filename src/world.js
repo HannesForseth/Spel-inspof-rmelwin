@@ -31,40 +31,11 @@ export class World {
     this.createFlowers();
     this.spawnTrees();
     this.spawnBushes();
-    this._loadBlenderWorld();
-  }
-
-  // Laddar in den Blender-bakade världen (terräng + props) ovanpå
-  // den procedurella basen. Asynkront - om det misslyckas spelet
-  // fortsätter funka med den befintliga procedurella miljön.
-  async _loadBlenderWorld() {
-    try {
-      const { root: terrain } = await cloneModel('/models/world_terrain.glb');
-      terrain.position.y = -0.05;
-      terrain.traverse((o) => {
-        if (o.isMesh) {
-          o.receiveShadow = true;
-          o.castShadow = false;
-        }
-      });
-      this.scene.add(terrain);
-      this.blenderTerrain = terrain;
-    } catch (e) {
-      console.warn('[World] world_terrain.glb kunde inte laddas', e);
-    }
-    try {
-      const { root: props } = await cloneModel('/models/world_props.glb');
-      props.traverse((o) => {
-        if (o.isMesh) {
-          o.castShadow = true;
-          o.receiveShadow = true;
-        }
-      });
-      this.scene.add(props);
-      this.blenderProps = props;
-    } catch (e) {
-      console.warn('[World] world_props.glb kunde inte laddas', e);
-    }
+    // Blender-värld (world_terrain.glb + world_props.glb) finns kvar
+    // i public/models/ men laddas inte här — den är ett komplett
+    // bergslandskap som kräver att pond/camp/arena/cave-positioner
+    // flyttas till platta områden, plus terrain-raycast för
+    // spelar-y. Aktivera och bygg om i en separat pass.
   }
 
   // Trollets boplats - en stencirkel på motsatt sida av kartan
