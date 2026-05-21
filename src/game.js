@@ -315,6 +315,12 @@ export class Game {
     );
     this.player.hasShield = this.player.equipped.shield;
     this.player.hasArmor = this.player.equipped.armor;
+    // Terräng-y under spelaren - mätt INNAN physics så hopp etc räknas rätt
+    this.player.groundY = this.world.getTerrainY(
+      this.player.position.x,
+      this.player.position.z,
+      0,
+    );
     this.player.updatePhysics(dt);
     this.player.updateMana(dt);
     this.player.updateAnimation(dt, moveVec.lengthSq() > 0.001);
@@ -373,12 +379,16 @@ export class Game {
 
     const px = this.player.position.x;
     const pz = this.player.position.z;
+    // Kameran följer terrängen fullt ut men dämpar hopp/luft-rörelse
+    const py = this.player.position.y;
+    const gY = this.player.groundY;
+    const camFollowY = gY + (py - gY) * 0.3;
     this.camera.position.set(
       px + Math.sin(this.cameraAngle) * this.cameraDistance + sx,
-      this.cameraHeight + this.player.position.y * 0.3 + sy,
+      this.cameraHeight + camFollowY + sy,
       pz + Math.cos(this.cameraAngle) * this.cameraDistance,
     );
-    this.camera.lookAt(px, 1.2 + this.player.position.y * 0.3, pz);
+    this.camera.lookAt(px, 1.2 + camFollowY, pz);
 
     // Skördning av träd/bär/fisk/eld + NPC-interaktion
     const nearest = this.world.getNearestInteractable(this.player.position, INTERACT_RANGE);
@@ -431,6 +441,12 @@ export class Game {
     // Uppdatera djur + boss-attacker. Djur kan inte gå i vattnet.
     for (const c of this.creatures) {
       c.update(dt, this.player.position);
+
+      // Snappa djurets y till terrängen så det inte flyter ovanför / klipper igenom
+      if (c.alive) {
+        c.position.y = this.world.getTerrainY(c.position.x, c.position.z, 0);
+        c.group.position.y = c.position.y;
+      }
 
       // Knuffa ut ur sjön om de råkar gå i
       if (c.alive && this.world._inPond(c.position.x, c.position.z, -0.2)) {

@@ -52,6 +52,9 @@ export class Player {
 
     this.yVel = 0;
     this.onGround = true;
+    // Sätts av Game varje frame baserat på terräng-raycast vid (x,z).
+    // Spelarens fysik använder detta som "y=0" istället för hårdkodat 0.
+    this.groundY = 0;
 
     this.activeWeapon = null;
 
@@ -504,23 +507,26 @@ export class Player {
   }
 
   updatePhysics(dt) {
-    if (!this.onGround) {
+    if (this.onGround) {
+      // Limma på terrängen när vi inte hoppar
+      this.position.y = this.groundY;
+    } else {
       this.yVel -= GRAVITY * dt;
       this.position.y += this.yVel * dt;
-      if (this.position.y <= 0) {
-        this.position.y = 0;
+      if (this.position.y <= this.groundY) {
+        this.position.y = this.groundY;
         this.yVel = 0;
         this.onGround = true;
       }
     }
 
     // I vatten: sjunk gradvis ner. Ur vatten: tillbaka till marknivå.
-    const targetY = this.inWater && this.onGround ? -0.85 : 0;
+    const targetY = this.inWater && this.onGround ? this.groundY - 0.85 : this.groundY;
     if (this.onGround) {
       this.surfaceY += (targetY - this.surfaceY) * Math.min(1, dt * 5);
       this.group.position.y = this.surfaceY;
     } else {
-      this.surfaceY = 0;
+      this.surfaceY = this.groundY;
       this.group.position.y = this.position.y;
     }
 
@@ -758,7 +764,7 @@ export class Player {
 
   respawn() {
     this.hp = this.maxHp;
-    this.position.set(0, 0, 0);
+    this.position.set(0, this.groundY, 0);
     this.yVel = 0;
     this.onGround = true;
     this.group.position.copy(this.position);

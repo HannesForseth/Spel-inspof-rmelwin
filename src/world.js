@@ -6,6 +6,9 @@ import { cloneModel } from './models.js';
 const PLAYER_RADIUS = 0.45;
 const WORLD_BOUND = 145;
 
+const TERRAIN_RAY_ORIGIN = new THREE.Vector3();
+const TERRAIN_RAY_DOWN = new THREE.Vector3(0, -1, 0);
+
 export class World {
   constructor(scene) {
     this.scene = scene;
@@ -16,10 +19,21 @@ export class World {
     this.swayingTrees = [];
     this.bobbingFlowers = [];
     this.time = 0;
+    // Spårning av alla statiska objekt vi lagt i scenen så vi kan
+    // höja dem till terräng-y efter att Blender-världen laddats
+    this._worldObjects = [];
+    this._terrainReady = false;
+    this._raycaster = new THREE.Raycaster();
+    this._raycaster.far = 600;
 
     // Läger - större för att rymma fler NPC senare
     this.campCenter = new THREE.Vector3(0, 0, -14);
     this.campRadius = 12;
+
+    // Ladda Blender-värld FÖRST så terrängen är på plats redan när
+    // träd/camp/etc skapas - om det fortfarande är async fyller vi
+    // i y-värden i efterhand via _snapWorldToTerrain
+    this._loadBlenderWorld();
 
     this.createGround();
     this.createPond();
@@ -31,11 +45,86 @@ export class World {
     this.createFlowers();
     this.spawnTrees();
     this.spawnBushes();
-    // Blender-värld (world_terrain.glb + world_props.glb) finns kvar
-    // i public/models/ men laddas inte här — den är ett komplett
-    // bergslandskap som kräver att pond/camp/arena/cave-positioner
-    // flyttas till platta områden, plus terrain-raycast för
-    // spelar-y. Aktivera och bygg om i en separat pass.
+  }
+
+  // Wrapper kring scene.add som registrerar objekt för terrain-snap.
+  // ALLA scene-tillägg i World ska gå via denna (utom Blender-världen
+  // själv och safety-marken som inte ska snappas).
+  _addToScene(obj) {
+    this.scene.add(obj);
+    this._worldObjects.push(obj);
+    if (this._terrainReady) this._snapObject(obj);
+    return obj;
+  }
+
+  _snapObject(obj) {
+    if (obj.userData._terrainSnapped) return;
+    const ty = this.getTerrainY(obj.position.x, obj.position.z, 0);
+    obj.position.y += ty;
+    if (obj.userData?.basY !== undefined) obj.userData.basY += ty;
+    obj.userData._terrainSnapped = true;
+  }
+
+  // Laddar in Blender-baserad terräng + props som ersätter den
+  // platta procedurella marken. När terrängen laddats snappar vi
+  // alla statiska objekt + interactables till terrängens y vid
+  // deras (x,z).
+  async _loadBlenderWorld() {
+    try {
+      const { root: terrain } = await cloneModel('/models/world_terrain.glb');
+      this.terrainMeshes = [];
+      terrain.traverse((o) => {
+        if (o.isMesh) {
+          o.receiveShadow = true;
+          o.castShadow = false;
+          this.terrainMeshes.push(o);
+        }
+      });
+      this.scene.add(terrain);
+      this.blenderTerrain = terrain;
+      this._snapWorldToTerrain(); // sätter _terrainReady=true
+    } catch (e) {
+      console.warn('[World] world_terrain.glb kunde inte laddas', e);
+    }
+    try {
+      const { root: props } = await cloneModel('/models/world_props.glb');
+      props.traverse((o) => {
+        if (o.isMesh) {
+          o.castShadow = true;
+          o.receiveShadow = true;
+        }
+      });
+      this.scene.add(props);
+      this.blenderProps = props;
+    } catch (e) {
+      console.warn('[World] world_props.glb kunde inte laddas', e);
+    }
+  }
+
+  // Raycastar nedåt från (x, 500, z) mot terrängens mesh. Returnerar
+  // terrängens y vid (x,z), eller fallback om strålen missar / mesh
+  // inte är laddad än.
+  getTerrainY(x, z, fallback = 0) {
+    if (!this.terrainMeshes || this.terrainMeshes.length === 0) return fallback;
+    TERRAIN_RAY_ORIGIN.set(x, 500, z);
+    this._raycaster.set(TERRAIN_RAY_ORIGIN, TERRAIN_RAY_DOWN);
+    const hits = this._raycaster.intersectObjects(this.terrainMeshes, false);
+    if (hits.length > 0) return hits[0].point.y;
+    return fallback;
+  }
+
+  // Höj allt statiskt content + alla interactables till respektive
+  // terrängs-y vid deras (x,z). Kallas efter att terrängen laddats.
+  _snapWorldToTerrain() {
+    this._terrainReady = true;
+    for (const obj of this._worldObjects) this._snapObject(obj);
+    for (const it of this.interactables) {
+      if (!it.group || it.group.userData._terrainSnapped) continue;
+      const ty = this.getTerrainY(it.position.x, it.position.z, 0);
+      it.group.position.y = ty;
+      if (it.position) it.position.y = ty;
+      it.group.userData._terrainSnapped = true;
+    }
   }
 
   // Trollets boplats - en stencirkel på motsatt sida av kartan
@@ -59,7 +148,7 @@ export class World {
       stone.rotation.y = Math.random() * Math.PI * 2;
       stone.castShadow = true;
       stone.receiveShadow = true;
-      this.scene.add(stone);
+      this._addToScene(stone);
       this.obstacles.push({
         x: cx + Math.cos(angle) * r,
         z: cz + Math.sin(angle) * r,
@@ -73,7 +162,7 @@ export class World {
       );
       moss.position.set(cx + Math.cos(angle) * r, 2.0, cz + Math.sin(angle) * r);
       moss.scale.y = 0.5;
-      this.scene.add(moss);
+      this._addToScene(moss);
     }
 
     // Eld-pit i mitten (släckt)
@@ -84,7 +173,7 @@ export class World {
     );
     ash.rotation.x = -Math.PI / 2;
     ash.position.set(cx, 0.04, cz);
-    this.scene.add(ash);
+    this._addToScene(ash);
 
     // Ben-högar - varning till spelaren
     const boneMat = new THREE.MeshStandardMaterial({ color: 0xeceff1 });
@@ -98,7 +187,7 @@ export class World {
       bone.position.set(cx + Math.cos(angle) * r, 0.3, cz + Math.sin(angle) * r);
       bone.rotation.z = Math.random() * Math.PI;
       bone.rotation.x = Math.random() * 0.3;
-      this.scene.add(bone);
+      this._addToScene(bone);
     }
 
     // En stor "tron" - sten där trollet sitter ibland
@@ -108,33 +197,21 @@ export class World {
     );
     throne.position.set(cx, 0.75, cz - 4);
     throne.castShadow = true;
-    this.scene.add(throne);
+    this._addToScene(throne);
   }
 
   createGround() {
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(WORLD_BOUND * 2.2, WORLD_BOUND * 2.2, 1, 1),
-      new THREE.MeshStandardMaterial({ color: 0x6fbf4b }),
+    // Den procedurella platta marken är ersatt av world_terrain.glb.
+    // Som backup innan terrängen laddas hänger en stor mörkbrun "void"
+    // långt under så himlen inte syns igenom på första frame.
+    const safety = new THREE.Mesh(
+      new THREE.PlaneGeometry(WORLD_BOUND * 4, WORLD_BOUND * 4, 1, 1),
+      new THREE.MeshStandardMaterial({ color: 0x2a2418 }),
     );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
-
-    // Patches av mörkare grönt
-    for (let i = 0; i < 50; i++) {
-      const patch = new THREE.Mesh(
-        new THREE.CircleGeometry(2 + Math.random() * 4, 8),
-        new THREE.MeshStandardMaterial({ color: 0x4a9b2e }),
-      );
-      patch.rotation.x = -Math.PI / 2;
-      patch.position.set(
-        (Math.random() - 0.5) * WORLD_BOUND * 1.8,
-        0.01,
-        (Math.random() - 0.5) * WORLD_BOUND * 1.8,
-      );
-      patch.receiveShadow = true;
-      this.scene.add(patch);
-    }
+    safety.rotation.x = -Math.PI / 2;
+    safety.position.y = -8;
+    safety.receiveShadow = true;
+    this.scene.add(safety); // ej via _addToScene - vi vill INTE snappa den
   }
 
   // Slät, organisk sjö via CatmullRom-kurva genom anchors
@@ -179,7 +256,7 @@ export class World {
     sand.rotation.x = -Math.PI / 2;
     sand.position.set(this.pondCenter.x, 0.015, this.pondCenter.z);
     sand.receiveShadow = true;
-    this.scene.add(sand);
+    this._addToScene(sand);
 
     // Botten - mörkblå, lite mindre än vattnet och något under marknivå
     const bottom = new THREE.Mesh(
@@ -188,7 +265,7 @@ export class World {
     );
     bottom.rotation.x = -Math.PI / 2;
     bottom.position.set(this.pondCenter.x, -0.35, this.pondCenter.z);
-    this.scene.add(bottom);
+    this._addToScene(bottom);
 
     // Vattenyta - halvtransparent över botten
     this.water = new THREE.Mesh(
@@ -203,7 +280,7 @@ export class World {
     );
     this.water.rotation.x = -Math.PI / 2;
     this.water.position.set(this.pondCenter.x, 0.05, this.pondCenter.z);
-    this.scene.add(this.water);
+    this._addToScene(this.water);
 
     // Fiskeplats - bryggan ska sticka ut över vattnet, fötter på sand
     const westPoint = samplePoints.reduce((best, p) => {
@@ -270,14 +347,14 @@ export class World {
             obj.receiveShadow = true;
           }
         });
-        this.scene.add(root);
+        this._addToScene(root);
       })
       .catch((err) => console.warn('cave.glb kunde inte laddas', err));
 
     // Fackla inne i grottan - varmt ljus + visuell fackla
     const torchLight = new THREE.PointLight(0xff8a3d, 3, 18, 2);
     torchLight.position.set(cx, 2.8, cz - 5);
-    this.scene.add(torchLight);
+    this._addToScene(torchLight);
     const torchBox = new THREE.Mesh(
       new THREE.BoxGeometry(0.22, 0.45, 0.22),
       new THREE.MeshStandardMaterial({
@@ -287,7 +364,7 @@ export class World {
       }),
     );
     torchBox.position.set(cx, 2.8, cz - 7);
-    this.scene.add(torchBox);
+    this._addToScene(torchBox);
     this.caveTorch = torchBox;
 
     // Fackelstöd
@@ -296,7 +373,7 @@ export class World {
       new THREE.MeshStandardMaterial({ color: 0x4e342e }),
     );
     torchPole.position.set(cx, 1.5, cz - 7);
-    this.scene.add(torchPole);
+    this._addToScene(torchPole);
 
     // Lösa stenar runt utsidan
     const looseStoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.95 });
@@ -314,7 +391,7 @@ export class World {
       stone.position.set(sx, 0.4, sz);
       stone.rotation.y = Math.random() * Math.PI;
       stone.castShadow = true;
-      this.scene.add(stone);
+      this._addToScene(stone);
       this.obstacles.push({ x: sx, z: sz, radius: 0.7 });
     }
   }
@@ -331,7 +408,7 @@ export class World {
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(c.x, 0.02, c.z);
     floor.receiveShadow = true;
-    this.scene.add(floor);
+    this._addToScene(floor);
 
     // Palissad
     const logMat = new THREE.MeshStandardMaterial({ color: 0x6d4c2a });
@@ -351,7 +428,7 @@ export class World {
       log.rotation.z = (Math.random() - 0.5) * 0.05;
       log.castShadow = true;
       log.receiveShadow = true;
-      this.scene.add(log);
+      this._addToScene(log);
     }
     // Spetsig topp på varje stock
     for (let i = 0; i < segments; i++) {
@@ -359,7 +436,7 @@ export class World {
       if (angle > this.gateAngleMin && angle < this.gateAngleMax) continue;
       const tip = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.4, 6), logMat);
       tip.position.set(c.x + Math.cos(angle) * r, 2.4, c.z + Math.sin(angle) * r);
-      this.scene.add(tip);
+      this._addToScene(tip);
     }
 
     // Portstolpar vid gaten
@@ -370,7 +447,7 @@ export class World {
       );
       post.position.set(c.x + Math.cos(gateAngle) * r, 1.4, c.z + Math.sin(gateAngle) * r);
       post.castShadow = true;
-      this.scene.add(post);
+      this._addToScene(post);
     }
 
     // Hyddan - bortre delen, nu lite mer åt norr i större läger
@@ -411,7 +488,7 @@ export class World {
       );
       pad.position.set(slot.x, 0.05, slot.z);
       pad.receiveShadow = true;
-      this.scene.add(pad);
+      this._addToScene(pad);
 
       // Liten pelare/staty som platshållare
       const post = new THREE.Mesh(
@@ -420,7 +497,7 @@ export class World {
       );
       post.position.set(slot.x, 0.7, slot.z);
       post.castShadow = true;
-      this.scene.add(post);
+      this._addToScene(post);
     }
   }
 
@@ -478,7 +555,7 @@ export class World {
     hut.add(win);
 
     hut.position.copy(pos);
-    this.scene.add(hut);
+    this._addToScene(hut);
 
     // Kollision för hyddan
     this.obstacles.push({ x: pos.x, z: pos.z, radius: 2.0 });
@@ -517,7 +594,7 @@ export class World {
             obj.receiveShadow = true;
           }
         });
-        this.scene.add(root);
+        this._addToScene(root);
       })
       .catch((err) => console.warn('arena.glb kunde inte laddas', err));
   }
@@ -564,7 +641,7 @@ export class World {
       patch.rotation.z = Math.random() * Math.PI;
       patch.position.set(x, 0.025, z);
       patch.receiveShadow = true;
-      this.scene.add(patch);
+      this._addToScene(patch);
     }
   }
 
@@ -584,7 +661,7 @@ export class World {
       flower.position.set(x, 0.18, z);
       flower.userData.basY = 0.18;
       flower.userData.phase = Math.random() * Math.PI * 2;
-      this.scene.add(flower);
+      this._addToScene(flower);
       this.bobbingFlowers.push(flower);
     }
   }
