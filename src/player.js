@@ -127,6 +127,7 @@ export class Player {
     this.mixer = null;
     this.actions = null;
     this.currentActionName = null;
+    this.hasShield = false;
     this._loadGLB();
   }
 
@@ -170,6 +171,9 @@ export class Player {
         this._attachWeapon('/models/bow.glb', this._handL).then((m) => {
           this._glbBow = m;
         });
+        this._attachWeapon('/models/shield.glb', this._handL).then((m) => {
+          this._glbShield = m;
+        });
       }
     } catch (err) {
       console.warn('[Player] GLB kunde inte laddas, kvar med box-mesh', err);
@@ -178,7 +182,7 @@ export class Player {
 
   async _attachWeapon(url, bone) {
     const { root } = await cloneModel(url);
-    for (const name of ['Weapon_Sword', 'Weapon_Bow', 'Weapon_Axe']) {
+    for (const name of ['Weapon_Sword', 'Weapon_Bow', 'Weapon_Axe', 'Weapon_Shield']) {
       const obj = root.getObjectByName(name);
       if (obj) {
         obj.position.set(0, 0, 0);
@@ -234,6 +238,10 @@ export class Player {
     if (this._glbAxe) {
       this._glbAxe.visible = this.isChopping;
     }
+    if (this._glbShield) {
+      this._glbShield.visible =
+        this.hasShield && this.activeWeapon !== 'bow' && !this.isChopping;
+    }
 
     let next;
     let oneShot = false;
@@ -242,7 +250,7 @@ export class Player {
       next = 'Death';
       oneShot = true;
     } else if (this.swinging && this.activeWeapon === 'sword') {
-      next = 'Sword_Slash';
+      next = this.hasShield ? 'Sword_Shield_Slash' : 'Sword_Slash';
       oneShot = true;
     } else if (this.swinging && this.activeWeapon === 'bow') {
       next = 'Bow_Shot';
