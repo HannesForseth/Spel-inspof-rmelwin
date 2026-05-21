@@ -211,13 +211,18 @@ export class UI {
 
   renderBag() {
     const inv = this.game.inventory;
-    const heal = {
-      berry: 10,
-      meat: 8,
-      cookedMeat: 40,
-      fish: 15,
-    };
-    const slots = [
+    const upg = this.game.upgrades;
+    const eq = this.game.player.equipped;
+
+    const heal = { berry: 10, meat: 8, cookedMeat: 40, fish: 15 };
+
+    const equipment = [
+      { key: 'sword', icon: '⚔️', label: 'Svärd' },
+      { key: 'bow', icon: '🏹', label: 'Pilbåge' },
+      { key: 'shield', icon: '🛡️', label: 'Sköld' },
+      { key: 'armor', icon: '🥋', label: 'Rustning' },
+    ];
+    const materials = [
       { key: 'wood', icon: '🪵', label: 'Trä' },
       { key: 'hide', icon: '🟫', label: 'Skinn' },
       { key: 'berry', icon: '🫐', label: 'Bär' },
@@ -228,8 +233,31 @@ export class UI {
     ];
 
     let html = `<p class="bag-summary">🎒 ${inv.total()} / ${inv.capacity} · 💰 ${inv.gold} guld</p>`;
+
+    const owned = equipment.filter((e) => upg.getLevel(e.key) > 0);
+    if (owned.length > 0) {
+      html += `<h3 style="margin: 8px 0 6px; font-size: 14px; opacity: 0.85;">⚔️ Utrustning</h3>`;
+      html += `<div class="bag-grid">`;
+      for (const e of owned) {
+        const level = upg.getLevel(e.key);
+        const isEq = !!eq[e.key];
+        html += `<div class="bag-slot ${isEq ? 'equipped' : ''}">
+          <div class="bag-icon">${e.icon}</div>
+          <div class="bag-label">${e.label} <span style="opacity:0.7">⭐${level}</span></div>
+          <div class="bag-count" style="font-size:11px;font-weight:500;opacity:0.85">${isEq ? '✅ Equipped' : 'I bagen'}</div>
+          <div class="bag-actions">
+            <button class="bag-btn ${isEq ? 'drop-all' : 'eat'}" data-action="toggle-equip" data-item="${e.key}">
+              ${isEq ? '⬇️ Ta av' : '⬆️ Ta på'}
+            </button>
+          </div>
+        </div>`;
+      }
+      html += `</div>`;
+    }
+
+    html += `<h3 style="margin: 12px 0 6px; font-size: 14px; opacity: 0.85;">📦 Material</h3>`;
     html += `<div class="bag-grid">`;
-    for (const s of slots) {
+    for (const s of materials) {
       const count = inv[s.key];
       const empty = count <= 0;
       const canEat = heal[s.key] != null && !empty;
@@ -259,6 +287,15 @@ export class UI {
 
   _bagAction(action, item, heal) {
     const inv = this.game.inventory;
+    const eq = this.game.player.equipped;
+    if (action === 'toggle-equip' && eq[item] !== undefined) {
+      eq[item] = !eq[item];
+      if (eq[item] && (item === 'sword' || item === 'bow')) {
+        this.game.controls.selectedWeapon = item;
+      }
+      this.showToast(eq[item] ? `⬆️ ${item} på` : `⬇️ ${item} av`);
+      return;
+    }
     if (action === 'eat' && heal[item] && inv[item] > 0) {
       inv[item] -= 1;
       const healed = this.game.player.heal(heal[item]);
@@ -287,7 +324,7 @@ export class UI {
     html += `<div class="stat-row"><span>💨 Andning</span><b>${player.breath.toFixed(1)} / ${player.maxBreath}</b></div>`;
     html += `<div class="stat-row"><span>⚔️ Svärdsskada</span><b>${upg.getSwordDamage()}</b></div>`;
     html += `<div class="stat-row"><span>🏹 Bågskada</span><b>${upg.getBowDamage()}</b></div>`;
-    html += `<div class="stat-row"><span>🛡️ Försvar</span><b>${upg.getDefense()}</b></div>`;
+    html += `<div class="stat-row"><span>🛡️ Försvar</span><b>${upg.getDefense(player.equipped)}</b></div>`;
     html += `<div class="stat-row"><span>🏃 Hastighet</span><b>${upg.getMoveSpeed().toFixed(1)} m/s</b></div>`;
     html += `<div class="stat-row"><span>🎒 Ryggsäck</span><b>${inv.total()} / ${inv.capacity}</b></div>`;
     html += `<div class="stat-row"><span>💰 Guld</span><b>${inv.gold}</b></div>`;
@@ -563,8 +600,14 @@ export class UI {
 
     if (recipe.grantUpgrade) {
       const ok = this.game.upgrades.grantUpgrade(recipe.grantUpgrade);
-      if (ok && (recipe.grantUpgrade === 'sword' || recipe.grantUpgrade === 'bow')) {
-        this.game.controls.selectedWeapon = recipe.grantUpgrade;
+      if (ok) {
+        const k = recipe.grantUpgrade;
+        if (this.game.player.equipped[k] !== undefined) {
+          this.game.player.equipped[k] = true;
+        }
+        if (k === 'sword' || k === 'bow') {
+          this.game.controls.selectedWeapon = k;
+        }
       }
       this.showToast(`🎉 Tillverkade ${recipe.label}!`);
     } else {

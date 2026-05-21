@@ -218,8 +218,11 @@ export class Upgrades {
     return UPGRADES.armor.defense(this.levels.armor);
   }
 
-  getDefense() {
-    return this.getShieldDefense() + this.getArmorDefense();
+  getDefense(equipped = {}) {
+    let d = 0;
+    if (equipped.shield) d += this.getShieldDefense();
+    if (equipped.armor) d += this.getArmorDefense();
+    return d;
   }
 
   grantUpgrade(key) {

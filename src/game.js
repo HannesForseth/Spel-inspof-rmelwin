@@ -310,8 +310,8 @@ export class Game {
       this.player.position.z,
       -0.3,
     );
-    this.player.hasShield = this.upgrades.getLevel('shield') > 0;
-    this.player.hasArmor = this.upgrades.getLevel('armor') > 0;
+    this.player.hasShield = this.player.equipped.shield;
+    this.player.hasArmor = this.player.equipped.armor;
     this.player.updatePhysics(dt);
     this.player.updateMana(dt);
     this.player.updateAnimation(dt, moveVec.lengthSq() > 0.001);
@@ -454,7 +454,7 @@ export class Game {
         c.alive &&
         c.tryAttack(this.player.position)
       ) {
-        const defense = this.upgrades.getDefense();
+        const defense = this.upgrades.getDefense(this.player.equipped);
         const reduced = Math.max(1, c.attackDamage - defense);
         const hit = this.player.takeDamage(reduced);
         if (hit) {

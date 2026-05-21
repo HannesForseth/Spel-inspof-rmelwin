@@ -6,6 +6,7 @@ export class CharacterPreview {
     this.canvas = canvas;
     this.upgrades = upgrades;
     this.player = player;
+    this.equipped = player?.equipped || {};
     this.weapons = {};
     this.rotation = 0;
     this.running = false;
@@ -84,16 +85,10 @@ export class CharacterPreview {
   }
 
   _refreshEquipped() {
-    if (!this.upgrades) return;
-    if (this.weapons.sword) {
-      this.weapons.sword.visible = this.upgrades.getLevel('sword') > 0;
-    }
-    if (this.weapons.bow) {
-      this.weapons.bow.visible = this.upgrades.getLevel('bow') > 0;
-    }
-    if (this.weapons.shield) {
-      this.weapons.shield.visible = this.upgrades.getLevel('shield') > 0;
-    }
+    const eq = this.player?.equipped || {};
+    if (this.weapons.sword) this.weapons.sword.visible = !!eq.sword;
+    if (this.weapons.bow) this.weapons.bow.visible = !!eq.bow;
+    if (this.weapons.shield) this.weapons.shield.visible = !!eq.shield;
     if (this.weapons.axe) this.weapons.axe.visible = false;
   }
 

@@ -134,6 +134,7 @@ export class Player {
     this.actions = null;
     this.currentActionName = null;
     this.hasShield = false;
+    this.equipped = { sword: false, bow: false, shield: false, armor: false };
     this._loadGLB();
   }
 
@@ -236,17 +237,19 @@ export class Player {
     }
 
     if (this._glbSword) {
-      this._glbSword.visible = this.activeWeapon === 'sword' && !this.isChopping;
+      this._glbSword.visible =
+        this.equipped.sword && this.activeWeapon === 'sword' && !this.isChopping;
     }
     if (this._glbBow) {
-      this._glbBow.visible = this.activeWeapon === 'bow' && !this.isChopping;
+      this._glbBow.visible =
+        this.equipped.bow && this.activeWeapon === 'bow' && !this.isChopping;
     }
     if (this._glbAxe) {
       this._glbAxe.visible = this.isChopping;
     }
     if (this._glbShield) {
       this._glbShield.visible =
-        this.hasShield && this.activeWeapon !== 'bow' && !this.isChopping;
+        this.equipped.shield && this.activeWeapon !== 'bow' && !this.isChopping;
     }
 
     let next;
