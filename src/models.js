@@ -21,9 +21,10 @@ export async function cloneModel(url) {
   const root = gltf.scene.clone(true);
 
   root.traverse((obj) => {
-    if (obj.isMesh) {
+    if (obj.isMesh || obj.isSkinnedMesh) {
       obj.castShadow = true;
       obj.receiveShadow = false;
+      obj.frustumCulled = false;
       if (obj.material) {
         obj.material = obj.material.clone();
       }

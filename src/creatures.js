@@ -368,6 +368,12 @@ export class Bear extends Creature {
       this._hipsBoneRest = this._hipsBone
         ? this._hipsBone.position.clone()
         : null;
+      console.log(
+        '[Bear] GLB laddad. group.position=',
+        this.group.position.toArray().map((v) => v.toFixed(1)).join(','),
+        'rootBone=', this._rootBone?.name, '@', this._rootBoneRest?.toArray().map((v) => v.toFixed(2)).join(','),
+        'actions=', Object.keys(actions),
+      );
       this._playAction('Idle');
     } catch (err) {
       console.warn('Bear: GLB kunde inte laddas', err);
