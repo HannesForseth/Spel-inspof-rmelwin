@@ -1,3 +1,5 @@
+import { SPELLS } from './magic.js';
+
 export function isTouchDevice() {
   return (
     typeof window !== 'undefined' &&
@@ -58,6 +60,18 @@ export class MobileControls {
     this._buildDOM();
     this._bindEvents();
     this._bindFullscreenChanges();
+    this.updateSpellIcons();
+  }
+
+  updateSpellIcons() {
+    if (!this.game?.upgrades) return;
+    for (let slot = 0; slot < 2; slot++) {
+      const btn = this.root.querySelector(`.mobile-spell-btn[data-spell="${slot}"]`);
+      if (!btn) continue;
+      const key = this.game.upgrades.getEquippedSpell(slot);
+      const spell = key ? SPELLS[key] : null;
+      btn.textContent = spell ? spell.label.split(' ')[0] : '✨';
+    }
   }
 
   _buildDOM() {
@@ -71,6 +85,10 @@ export class MobileControls {
           <div id="mobile-joystick-knob"></div>
           <div id="mobile-joystick-ring"></div>
         </div>
+      </div>
+      <div id="mobile-spell-bar">
+        <button class="mobile-spell-btn" data-spell="0" type="button" aria-label="Magi 1">✨</button>
+        <button class="mobile-spell-btn" data-spell="1" type="button" aria-label="Magi 2">✨</button>
       </div>
       <div id="mobile-action-grid">
         <button class="mobile-btn mobile-btn-character" data-action="character" type="button" aria-label="Karaktär">👤</button>
@@ -108,7 +126,7 @@ export class MobileControls {
       else requestFullscreen();
     });
 
-    for (const btn of this.root.querySelectorAll('.mobile-btn')) {
+    for (const btn of this.root.querySelectorAll('.mobile-btn, .mobile-spell-btn')) {
       btn.addEventListener('touchstart', (e) => {
         e.preventDefault();
         this._press(btn);
@@ -139,6 +157,12 @@ export class MobileControls {
     btn.classList.add('pressed');
     const action = btn.dataset.action;
     const weapon = btn.dataset.weapon;
+    const spell = btn.dataset.spell;
+    if (spell !== undefined) {
+      this.controls.spellQueued[parseInt(spell, 10)] = true;
+      vibrate(25);
+      return;
+    }
     if (weapon === 'sword') {
       this.controls.selectedWeapon = 'sword';
       vibrate(15);

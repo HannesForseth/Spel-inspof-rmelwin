@@ -28,6 +28,8 @@ export class UI {
 
     this.hpTextEl = document.getElementById('hp-text');
     this.hpFillEl = document.getElementById('hp-fill');
+    this.manaTextEl = document.getElementById('mana-text');
+    this.manaFillEl = document.getElementById('mana-fill');
     this.breathLabelEl = document.getElementById('breath-label');
     this.breathBarEl = document.getElementById('breath-bar');
     this.breathTextEl = document.getElementById('breath-text');
@@ -107,6 +109,12 @@ export class UI {
       const pct = (player.hp / player.maxHp) * 100;
       this.hpFillEl.style.width = pct + '%';
       this.hpTextEl.textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
+
+      if (this.manaFillEl) {
+        const mp = (player.mana / player.maxMana) * 100;
+        this.manaFillEl.style.width = mp + '%';
+        this.manaTextEl.textContent = `${Math.ceil(player.mana)}/${player.maxMana}`;
+      }
 
       // Andningsmätare - visa när man inte har full andning
       if (player.breath < player.maxBreath - 0.01) {

@@ -124,6 +124,27 @@ export class Upgrades {
       shield: 0,
       armor: 0,
     };
+    this.knownSpells = ['fireball', 'iceball', 'lightning'];
+    this.equippedSpells = ['fireball', 'lightning'];
+  }
+
+  isSpellKnown(key) {
+    return this.knownSpells.includes(key);
+  }
+
+  isSpellEquipped(key) {
+    return this.equippedSpells.includes(key);
+  }
+
+  getEquippedSpell(slot) {
+    return this.equippedSpells[slot] || null;
+  }
+
+  equipSpell(slot, key) {
+    if (slot < 0 || slot > 1) return false;
+    if (key && !this.knownSpells.includes(key)) return false;
+    this.equippedSpells[slot] = key;
+    return true;
   }
 
   getDefinition(key) {

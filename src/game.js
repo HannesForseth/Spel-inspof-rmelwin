@@ -12,6 +12,7 @@ import { Arrow, HitEffect, findNearestTarget } from './combat.js';
 import { net } from './net.js';
 import { RemotePlayer } from './remotePlayer.js';
 import { isTouchDevice, vibrate } from './mobileControls.js';
+import { SPELLS, SpellProjectile, AOEEffect } from './magic.js';
 
 const INPUT_SEND_HZ = 20;
 const INPUT_SEND_INTERVAL = 1 / INPUT_SEND_HZ;
@@ -89,6 +90,10 @@ export class Game {
 
     this.remotePlayers = new Map();
     this.inputSendTimer = 0;
+
+    this.spellProjectiles = [];
+    this.aoeEffects = [];
+    this.spellCooldowns = [0, 0];
     net.addEventListener('world:state', (e) => this._onWorldState(e.detail));
     net.addEventListener('player:left', (e) =>
       this._removeRemotePlayer(e.detail.userId),
@@ -308,8 +313,38 @@ export class Game {
     this.player.hasShield = this.upgrades.getLevel('shield') > 0;
     this.player.hasArmor = this.upgrades.getLevel('armor') > 0;
     this.player.updatePhysics(dt);
+    this.player.updateMana(dt);
     this.player.updateAnimation(dt, moveVec.lengthSq() > 0.001);
     if (!this.player.isAlive()) this._playerDied();
+
+    this.spellCooldowns[0] = Math.max(0, this.spellCooldowns[0] - dt);
+    this.spellCooldowns[1] = Math.max(0, this.spellCooldowns[1] - dt);
+    if (this.controls.consumeSpell(0)) this._castSpell(0);
+    if (this.controls.consumeSpell(1)) this._castSpell(1);
+
+    for (const p of this.spellProjectiles) {
+      p.update(dt);
+      if (!p.alive) continue;
+      for (const c of this._getAllAliveCreatures()) {
+        const dx = c.position.x - p.position.x;
+        const dz = c.position.z - p.position.z;
+        const dy = (c.position.y || 0) + 1 - p.position.y;
+        if (dx * dx + dz * dz + dy * dy < 2.25) {
+          const killed = c.takeDamage(p.spell.damage, this.player.position);
+          this.effects.push(
+            new HitEffect(this.scene, p.position.clone(), p.spell.color),
+          );
+          if (killed) this._onCreatureKilled(c);
+          vibrate(40);
+          p.destroy();
+          break;
+        }
+      }
+    }
+    this.spellProjectiles = this.spellProjectiles.filter((p) => p.alive);
+
+    for (const a of this.aoeEffects) a.update(dt);
+    this.aoeEffects = this.aoeEffects.filter((a) => a.alive);
 
     // Vapenval (visualisera nyligen valt vapen)
     if (this.controls.selectedWeapon !== this.player.activeWeapon) {
@@ -762,5 +797,90 @@ export class Game {
       rp.destroy();
       this.remotePlayers.delete(userId);
     }
+  }
+
+  _getAllAliveCreatures() {
+    const list = [];
+    for (const c of this.creatures) if (c.alive) list.push(c);
+    for (const w of this.wolves) if (w.alive) list.push(w);
+    if (this.bear?.alive) list.push(this.bear);
+    if (this.troll?.alive) list.push(this.troll);
+    return list;
+  }
+
+  _castSpell(slot) {
+    const key = this.upgrades.getEquippedSpell(slot);
+    if (!key) {
+      this.ui.showToast('Ingen magi i den slotten');
+      return;
+    }
+    if (this.spellCooldowns[slot] > 0) {
+      this.ui.showToast(`🔄 ${this.spellCooldowns[slot].toFixed(1)}s kvar`);
+      return;
+    }
+    const spell = SPELLS[key];
+    if (!spell) return;
+    if (!this.player.useMana(spell.manaCost)) {
+      this.ui.showToast('💧 Otillräckligt med mana');
+      return;
+    }
+    this.spellCooldowns[slot] = spell.cooldown;
+    this.player.triggerCast(spell.castAnim);
+    vibrate(25);
+
+    const handPos = new THREE.Vector3();
+    this.player.getRightHandWorldPosition(handPos);
+    const playerPos = this.player.position.clone();
+    const facing = this.player.facing;
+
+    setTimeout(() => {
+      if (!this.player.isAlive()) return;
+      if (spell.type === 'projectile') {
+        this._spawnSpellProjectile(spell, handPos);
+      } else if (spell.type === 'aoe') {
+        this._castAOE(spell, playerPos);
+      }
+    }, spell.impactDelay * 1000);
+  }
+
+  _spawnSpellProjectile(spell, origin) {
+    const target = findNearestTarget(
+      this.player.position,
+      this._getAllAliveCreatures(),
+      25,
+    );
+    let dir;
+    if (target) {
+      dir = new THREE.Vector3(
+        target.position.x - origin.x,
+        (target.position.y || 1) + 0.8 - origin.y,
+        target.position.z - origin.z,
+      ).normalize();
+    } else {
+      dir = new THREE.Vector3(
+        Math.sin(this.player.facing),
+        0,
+        Math.cos(this.player.facing),
+      );
+    }
+    this.spellProjectiles.push(
+      new SpellProjectile(this.scene, spell, origin, dir),
+    );
+  }
+
+  _castAOE(spell, origin) {
+    const targets = this._getAllAliveCreatures().filter(
+      (c) => c.position.distanceTo(origin) <= spell.radius,
+    );
+    for (const t of targets) {
+      const killed = t.takeDamage(spell.damage, origin);
+      this.effects.push(
+        new HitEffect(this.scene, t.position.clone().setY(1), spell.color),
+      );
+      if (killed) this._onCreatureKilled(t);
+    }
+    this.aoeEffects.push(new AOEEffect(this.scene, origin, spell, targets));
+    this._triggerShake(0.5, 0.5);
+    vibrate([100, 50, 80]);
   }
 }

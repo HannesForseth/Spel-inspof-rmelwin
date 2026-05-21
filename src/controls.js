@@ -9,6 +9,7 @@ export class Controls {
     this.interactQueued = false; // E-tryck (en gång per nedtryckning)
     this.toggleCharacterQueued = false;
     this.toggleBagQueued = false;
+    this.spellQueued = [false, false];
     this.selectedWeapon = null; // 'sword' | 'bow' | null
 
     // Virtuell axis (för mobil joystick). x/z -1..1, magnitude 0..1
@@ -30,6 +31,8 @@ export class Controls {
         if (k === 'e') this.interactQueued = true;
         if (k === 'c') this.toggleCharacterQueued = true;
         if (k === 'b') this.toggleBagQueued = true;
+        if (k === 'q') this.spellQueued[0] = true;
+        if (k === 'r') this.spellQueued[1] = true;
         if (k === '1') this.selectedWeapon = 'sword';
         if (k === '2') this.selectedWeapon = 'bow';
       }
@@ -97,6 +100,14 @@ export class Controls {
   consumeToggleBag() {
     if (this.toggleBagQueued) {
       this.toggleBagQueued = false;
+      return true;
+    }
+    return false;
+  }
+
+  consumeSpell(slot) {
+    if (this.spellQueued[slot]) {
+      this.spellQueued[slot] = false;
       return true;
     }
     return false;

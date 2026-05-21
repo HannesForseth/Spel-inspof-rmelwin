@@ -37,6 +37,12 @@ export class Player {
     this.invulnTimer = 0;
     this.flashTimer = 0;
 
+    this.maxMana = 100;
+    this.mana = 100;
+    this.manaRegen = 8;
+    this._castAnimTime = 0;
+    this._castAnimName = null;
+
     // Andning för vatten
     this.maxBreath = 6;
     this.breath = 6;
@@ -249,6 +255,10 @@ export class Player {
     if (this.hp <= 0) {
       next = 'Death';
       oneShot = true;
+    } else if (this._castAnimTime > 0) {
+      next = this._castAnimName || 'Cast_Projectile';
+      oneShot = true;
+      this._castAnimTime -= dt;
     } else if (this.swinging && this.activeWeapon === 'sword') {
       next = this.hasShield ? 'Sword_Shield_Slash' : 'Sword_Slash';
       oneShot = true;
@@ -394,6 +404,31 @@ export class Player {
     this.activeWeapon = weapon;
     this.sword.visible = weapon === 'sword' && !this.isChopping;
     this.bow.visible = weapon === 'bow' && !this.isChopping;
+  }
+
+  updateMana(dt) {
+    this.mana = Math.min(this.maxMana, this.mana + this.manaRegen * dt);
+  }
+
+  useMana(amount) {
+    if (this.mana < amount) return false;
+    this.mana -= amount;
+    return true;
+  }
+
+  triggerCast(animName, duration = 0.65) {
+    this._castAnimName = animName;
+    this._castAnimTime = duration;
+  }
+
+  getRightHandWorldPosition(target) {
+    if (this._handR) {
+      this._handR.getWorldPosition(target);
+      return target;
+    }
+    target.copy(this.position);
+    target.y += 1.4;
+    return target;
   }
 
   // Uppdaterar bara animation/facing baserat på faktisk rörelse (position sätts av game.js efter kollision)
