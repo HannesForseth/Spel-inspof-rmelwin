@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { cloneModel } from './models.js';
 
 // Färger inspirerade av Melwins koncept-ritning
 const SHIRT = 0x4caf50;
@@ -121,6 +122,107 @@ export class Player {
     this.group.add(this.leftLegPivot, this.rightLegPivot);
 
     scene.add(this.group);
+
+    this.useGLB = false;
+    this.mixer = null;
+    this.actions = null;
+    this.currentActionName = null;
+    this._loadGLB();
+  }
+
+  async _loadGLB() {
+    try {
+      const { root, mixer, actions } = await cloneModel('/models/player.glb');
+      this.torsoPivot.visible = false;
+      this.leftLegPivot.visible = false;
+      this.rightLegPivot.visible = false;
+
+      this.group.add(root);
+      this.glbRoot = root;
+      this.mixer = mixer;
+      this.actions = actions;
+      this._rootBone = root.getObjectByName('root') || null;
+      this._hipsBone = root.getObjectByName('hips') || null;
+      this._handR = root.getObjectByName('hand.R') || null;
+      this._handL = root.getObjectByName('hand.L') || null;
+      this._rootBoneRest = this._rootBone
+        ? this._rootBone.position.clone()
+        : null;
+      this._hipsBoneRest = this._hipsBone
+        ? this._hipsBone.position.clone()
+        : null;
+      this.useGLB = true;
+      this._playAction('Idle');
+      console.log(
+        '[Player] GLB laddad. Animations:',
+        Object.keys(actions).join(', '),
+      );
+    } catch (err) {
+      console.warn('[Player] GLB kunde inte laddas, kvar med box-mesh', err);
+    }
+  }
+
+  _playAction(name, fadeTime = 0.12, opts = {}) {
+    if (!this.actions || !this.actions[name]) return;
+    if (this.currentActionName === name && !opts.force) return;
+
+    const next = this.actions[name];
+    const prev = this.currentActionName ? this.actions[this.currentActionName] : null;
+
+    next.reset();
+    if (opts.loop === false) {
+      next.loop = THREE.LoopOnce;
+      next.clampWhenFinished = true;
+    } else {
+      next.loop = THREE.LoopRepeat;
+      next.clampWhenFinished = false;
+    }
+    next.fadeIn(fadeTime).play();
+    if (prev) prev.fadeOut(fadeTime);
+
+    this.currentActionName = name;
+  }
+
+  updateAnimation(dt, isMoving) {
+    if (!this.useGLB || !this.mixer) return;
+
+    this.mixer.update(dt);
+
+    if (this._rootBone && this._rootBoneRest) {
+      this._rootBone.position.copy(this._rootBoneRest);
+    }
+    if (this._hipsBone && this._hipsBoneRest) {
+      this._hipsBone.position.x = this._hipsBoneRest.x;
+      this._hipsBone.position.z = this._hipsBoneRest.z;
+    }
+
+    let next;
+    let oneShot = false;
+
+    if (this.hp <= 0) {
+      next = 'Death';
+      oneShot = true;
+    } else if (this.swinging && this.activeWeapon === 'sword') {
+      next = 'Sword_Slash';
+      oneShot = true;
+    } else if (this.swinging && this.activeWeapon === 'bow') {
+      next = 'Bow_Shot';
+      oneShot = true;
+    } else if (this.isChopping) {
+      next = 'Chop';
+    } else if (this.flashTimer > 0.05) {
+      next = 'Hit';
+      oneShot = true;
+    } else if (!this.onGround && this.yVel > 0) {
+      next = 'Jump';
+      oneShot = true;
+    } else if (isMoving) {
+      next = 'Walk';
+    } else {
+      next = 'Idle';
+    }
+
+    this._playAction(next, 0.12, { loop: !oneShot });
   }
 
   _makeLimbPivot(x, y, w, h, d, color) {

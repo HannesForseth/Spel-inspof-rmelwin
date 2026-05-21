@@ -303,6 +303,7 @@ export class Game {
       -0.3,
     );
     this.player.updatePhysics(dt);
+    this.player.updateAnimation(dt, moveVec.lengthSq() > 0.001);
     if (!this.player.isAlive()) this._playerDied();
 
     // Vapenval (visualisera nyligen valt vapen)
