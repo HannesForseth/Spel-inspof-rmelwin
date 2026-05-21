@@ -27,13 +27,13 @@ export class Game {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87ceeb);
-    this.scene.fog = new THREE.Fog(0x87ceeb, 60, 180);
+    this.scene.fog = new THREE.Fog(0x87ceeb, 120, 450);
 
     this.camera = new THREE.PerspectiveCamera(
       70,
       window.innerWidth / window.innerHeight,
       0.1,
-      500,
+      1000,
     );
 
     this.isMobile = isTouchDevice();
@@ -51,7 +51,7 @@ export class Game {
     container.appendChild(this.renderer.domElement);
 
     if (this.isMobile) {
-      this.scene.fog = new THREE.Fog(0x87ceeb, 45, 130);
+      this.scene.fog = new THREE.Fog(0x87ceeb, 80, 280);
     }
 
     this._setupLights();
@@ -118,14 +118,20 @@ export class Game {
     this.sun.position.set(40, 60, 30);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
-    this.sun.shadow.camera.left = -60;
-    this.sun.shadow.camera.right = 60;
-    this.sun.shadow.camera.top = 60;
-    this.sun.shadow.camera.bottom = -60;
+    // Skuggvolymen följer spelaren - frustum täcker ±100 runt sun.target
+    this.sun.shadow.camera.left = -100;
+    this.sun.shadow.camera.right = 100;
+    this.sun.shadow.camera.top = 100;
+    this.sun.shadow.camera.bottom = -100;
     this.sun.shadow.camera.near = 1;
-    this.sun.shadow.camera.far = 200;
+    this.sun.shadow.camera.far = 300;
     this.sun.shadow.bias = -0.0005;
     this.scene.add(this.sun);
+    // Target som vi flyttar varje frame så ljusriktningen är konstant
+    // medan skuggvolymen följer med spelaren (annars förlorar man skuggor
+    // när man går bortom ±100 från origo i den nya större världen)
+    this.sun.target = new THREE.Object3D();
+    this.scene.add(this.sun.target);
   }
 
   _setupCamera() {
@@ -251,8 +257,28 @@ export class Game {
   }
 
   _update(dt) {
-    // Dag/natt
+    // Dag/natt - sätter sun.position till tids-baserad offset från origo
     this.dayNight.update(dt);
+
+    // Förskjut hela "sol-rigget" så att target ligger vid spelaren.
+    // Då följer skuggvolymen med oss medan dayNights riktning från
+    // origo blir bevarad (direction = sun.position - sun.target.position).
+    if (this.sun.target) {
+      const baseX = this.sun.position.x;
+      const baseY = this.sun.position.y;
+      const baseZ = this.sun.position.z;
+      this.sun.position.set(
+        this.player.position.x + baseX,
+        this.player.groundY + baseY,
+        this.player.position.z + baseZ,
+      );
+      this.sun.target.position.set(
+        this.player.position.x,
+        this.player.groundY,
+        this.player.position.z,
+      );
+      this.sun.target.updateMatrixWorld();
+    }
 
     // Spawna/despawna vargar baserat på dag/natt
     if (this.dayNight.isNighttime()) {

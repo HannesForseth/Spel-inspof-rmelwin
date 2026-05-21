@@ -4,7 +4,13 @@ import { Merchant, Anvil } from './npc.js';
 import { cloneModel } from './models.js';
 
 const PLAYER_RADIUS = 0.45;
-const WORLD_BOUND = 145;
+// Hur långt spelaren får röra sig från origo. Den nya Blender-terrängen
+// täcker ±725 i x/z, vi clampar lite snävare för marginal från kanten.
+const WORLD_BOUND = 700;
+// Var de procedurella resurserna (träd/buskar/blommor) får spawna.
+// Hålls mindre än WORLD_BOUND så spelaren inte måste vandra evigt
+// för att hitta något att skörda. world_props.glb fyller resten visuellt.
+const SPAWN_BOUND = 145;
 
 const TERRAIN_RAY_ORIGIN = new THREE.Vector3();
 const TERRAIN_RAY_DOWN = new THREE.Vector3(0, -1, 0);
@@ -657,8 +663,8 @@ export class World {
   createFlowers() {
     const flowerColors = [0xe91e63, 0xffeb3b, 0xffffff, 0xff5722, 0x9c27b0];
     for (let i = 0; i < 120; i++) {
-      const x = (Math.random() - 0.5) * WORLD_BOUND * 1.7;
-      const z = (Math.random() - 0.5) * WORLD_BOUND * 1.7;
+      const x = (Math.random() - 0.5) * SPAWN_BOUND * 1.7;
+      const z = (Math.random() - 0.5) * SPAWN_BOUND * 1.7;
       if (this._inPond(x, z, 1)) continue;
       if (this._inCamp(x, z, 1)) continue;
       const flower = new THREE.Mesh(
@@ -681,8 +687,8 @@ export class World {
     // Skapa kluster-center för tätare skogsområden
     const clusterCenters = [];
     while (clusterCenters.length < 9) {
-      const cx = (Math.random() - 0.5) * WORLD_BOUND * 1.5;
-      const cz = (Math.random() - 0.5) * WORLD_BOUND * 1.5;
+      const cx = (Math.random() - 0.5) * SPAWN_BOUND * 1.5;
+      const cz = (Math.random() - 0.5) * SPAWN_BOUND * 1.5;
       if (this._inPond(cx, cz, 8)) continue;
       if (this._inCamp(cx, cz, 6)) continue;
       if (this._inCave(cx, cz, 8)) continue;
@@ -713,8 +719,8 @@ export class World {
         z = c.z + Math.sin(angle) * r;
         minDist = 2.0; // tätare inom kluster
       } else {
-        x = (Math.random() - 0.5) * WORLD_BOUND * 1.9;
-        z = (Math.random() - 0.5) * WORLD_BOUND * 1.9;
+        x = (Math.random() - 0.5) * SPAWN_BOUND * 1.9;
+        z = (Math.random() - 0.5) * SPAWN_BOUND * 1.9;
         minDist = 3.0;
       }
       if (this._inPond(x, z, 3)) continue;
@@ -747,8 +753,8 @@ export class World {
     let attempts = 0;
     while (placed < 30 && attempts < 400) {
       attempts++;
-      const x = (Math.random() - 0.5) * WORLD_BOUND * 1.7;
-      const z = (Math.random() - 0.5) * WORLD_BOUND * 1.7;
+      const x = (Math.random() - 0.5) * SPAWN_BOUND * 1.7;
+      const z = (Math.random() - 0.5) * SPAWN_BOUND * 1.7;
       if (this._inPond(x, z, 2)) continue;
       if (this._inCamp(x, z, 2)) continue;
       if (this._inCave(x, z, 10)) continue;
