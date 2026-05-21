@@ -179,22 +179,34 @@ export class UI {
     html += `<div class="stat-row"><span>💨 Andning</span><b>${player.breath.toFixed(1)} / ${player.maxBreath}</b></div>`;
     html += `<div class="stat-row"><span>⚔️ Svärdsskada</span><b>${upg.getSwordDamage()}</b></div>`;
     html += `<div class="stat-row"><span>🏹 Bågskada</span><b>${upg.getBowDamage()}</b></div>`;
+    html += `<div class="stat-row"><span>🛡️ Försvar</span><b>${upg.getDefense()}</b></div>`;
     html += `<div class="stat-row"><span>🏃 Hastighet</span><b>${upg.getMoveSpeed().toFixed(1)} m/s</b></div>`;
     html += `<div class="stat-row"><span>🎒 Ryggsäck</span><b>${inv.total()} / ${inv.capacity}</b></div>`;
     html += `<div class="stat-row"><span>💰 Guld</span><b>${inv.gold}</b></div>`;
 
     html += `<h3>Utrustning</h3>`;
-    html += `<p style="font-size: 12px; opacity: 0.6; margin-bottom: 6px;">Rustning kommer i nästa uppdatering!</p>`;
+    const slotHTML = (key, icon, fallback) => {
+      const owned = upg.getLevel(key) > 0;
+      const lvl = upg.getLevel(key);
+      return `<div class="equipment-slot ${owned ? 'filled' : ''}">
+        <div class="icon">${icon}</div>
+        ${owned ? `${fallback} ⭐${lvl}` : fallback}
+      </div>`;
+    };
     html += `<div class="equipment-grid">
-      <div class="equipment-slot"><div class="icon">🪖</div>Hjälm</div>
-      <div class="equipment-slot"><div class="icon">🛡️</div>Bröstplåt</div>
-      <div class="equipment-slot"><div class="icon">👖</div>Byxor</div>
-      <div class="equipment-slot"><div class="icon">👢</div>Stövlar</div>
-      <div class="equipment-slot ${upg.hasWeapon('sword') ? 'filled' : ''}"><div class="icon">⚔️</div>${upg.hasWeapon('sword') ? `Svärd ⭐${upg.getLevel('sword')}` : 'Svärd'}</div>
-      <div class="equipment-slot ${upg.hasWeapon('bow') ? 'filled' : ''}"><div class="icon">🏹</div>${upg.hasWeapon('bow') ? `Pilbåge ⭐${upg.getLevel('bow')}` : 'Pilbåge'}</div>
-      <div class="equipment-slot"><div class="icon">💍</div>Ring</div>
-      <div class="equipment-slot"><div class="icon">🧿</div>Amulett</div>
+      ${slotHTML('sword', '⚔️', 'Svärd')}
+      ${slotHTML('bow', '🏹', 'Pilbåge')}
+      ${slotHTML('shield', '🛡️', 'Sköld')}
+      ${slotHTML('armor', '🥋', 'Rustning')}
+      ${slotHTML('axe', '🪓', 'Yxa')}
+      ${slotHTML('rod', '🎣', 'Metspö')}
+      ${slotHTML('boots', '👟', 'Skor')}
+      ${slotHTML('backpack', '🎒', 'Ryggsäck')}
     </div>`;
+
+    html += `<p style="font-size: 12px; opacity: 0.7; margin-top: 10px;">
+      💡 Saknar grundvapen? Gå till smedjan och välj "🔨 Tillverka".
+    </p>`;
 
     html += `<h3>Uppgraderingar</h3>`;
     for (const key of upg.getAllKeys()) {
@@ -378,19 +390,27 @@ export class UI {
 
   _renderCraft() {
     const inv = this.game.inventory;
+    const upg = this.game.upgrades;
     let html = `<p style="opacity: 0.7; font-size: 13px; margin-bottom: 8px;">Tillverka saker från råmaterial. Smart om du har resurserna.</p>`;
 
     for (const key of Object.keys(RECIPES)) {
       const recipe = RECIPES[key];
-      // Format inputs/outputs
+
+      if (recipe.grantUpgrade && upg.getLevel(recipe.grantUpgrade) > (recipe.requireLevel ?? 0)) {
+        continue;
+      }
+
       const inputStr = Object.entries(recipe.input)
         .map(([t, n]) => `${n}× ${ITEM_LABELS[t] || t}`)
         .join(', ');
-      const outputStr = Object.entries(recipe.output)
-        .map(([t, n]) => `${n}× ${ITEM_LABELS[t] || t}`)
-        .join(', ');
+      const outputStr = recipe.grantUpgrade
+        ? `🎁 ${recipe.label.split(' ').slice(1).join(' ')} (nivå 1)`
+        : Object.entries(recipe.output)
+            .map(([t, n]) => `${n}× ${ITEM_LABELS[t] || t}`)
+            .join(', ');
 
       const canCraft = Object.entries(recipe.input).every(([t, n]) => inv[t] >= n);
+      const showQty = !recipe.grantUpgrade;
 
       html += `<div class="shop-item">
         <div class="info">
@@ -399,7 +419,7 @@ export class UI {
           <div class="sub">Behöver: ${inputStr} → Får: ${outputStr}</div>
         </div>
         <div style="display: flex; gap: 6px; align-items: center;">
-          <input class="qty-input" type="number" min="1" max="99" value="1" data-craft-qty="${key}" />
+          ${showQty ? `<input class="qty-input" type="number" min="1" max="99" value="1" data-craft-qty="${key}" />` : ''}
           <button data-craft="${key}" ${canCraft ? '' : 'disabled'}>Tillverka</button>
         </div>
       </div>`;
@@ -421,21 +441,26 @@ export class UI {
     const inv = this.game.inventory;
     const recipe = RECIPES[key];
 
-    // Kolla att vi har material för alla qty
+    if (recipe.grantUpgrade) qty = 1;
+
     for (const [type, n] of Object.entries(recipe.input)) {
       if (inv[type] < n * qty) {
         this.showToast(`Behöver ${n * qty}× ${ITEM_LABELS[type] || type}`);
         return;
       }
     }
-    // Konsumera input
     for (const [type, n] of Object.entries(recipe.input)) {
       inv[type] -= n * qty;
     }
-    // Lägg till output
-    for (const [type, n] of Object.entries(recipe.output)) {
-      inv[type] += n * qty;
+
+    if (recipe.grantUpgrade) {
+      this.game.upgrades.grantUpgrade(recipe.grantUpgrade);
+      this.showToast(`🎉 Tillverkade ${recipe.label}!`);
+    } else {
+      for (const [type, n] of Object.entries(recipe.output)) {
+        inv[type] += n * qty;
+      }
+      this.showToast(`Tillverkade ${qty}× ${recipe.label}!`);
     }
-    this.showToast(`Tillverkade ${qty}× ${recipe.label}!`);
   }
 }

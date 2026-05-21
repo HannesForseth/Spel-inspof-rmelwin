@@ -45,6 +45,20 @@ const UPGRADES = {
     damage: (level) => (level === 0 ? 0 : level),
     range: (level) => 11 + level * 1.5,
   },
+  shield: {
+    label: '🛡️ Sköld',
+    description: 'Minskar inkommande skada',
+    maxLevel: 5,
+    cost: (level) => (level === 0 ? 60 : 60 * Math.pow(2, level)),
+    defense: (level) => (level === 0 ? 0 : 1 + level),
+  },
+  armor: {
+    label: '🥋 Rustning',
+    description: 'Solid rustning som tål mer',
+    maxLevel: 5,
+    cost: (level) => (level === 0 ? 100 : 100 * Math.pow(2, level)),
+    defense: (level) => (level === 0 ? 0 : 2 + level * 2),
+  },
 };
 
 // Recept för tillverkning (Köpmannens "Tillverka"-flik)
@@ -60,6 +74,34 @@ export const RECIPES = {
     description: '1 rått kött → 1 tillagat (alternativ till elden)',
     input: { meat: 1 },
     output: { cookedMeat: 1 },
+  },
+  sword_basic: {
+    label: '⚔️ Träsvärd',
+    description: 'Ditt första svärd. Hård kärnträ + lädergrepp.',
+    input: { wood: 5, hide: 2 },
+    grantUpgrade: 'sword',
+    requireLevel: 0,
+  },
+  bow_basic: {
+    label: '🏹 Enkel pilbåge',
+    description: 'Smidig pilbåge av spänstig björk.',
+    input: { wood: 8, hide: 2 },
+    grantUpgrade: 'bow',
+    requireLevel: 0,
+  },
+  shield_basic: {
+    label: '🛡️ Träsköld',
+    description: 'Plankor med lädergrepp på baksidan.',
+    input: { wood: 4, hide: 3 },
+    grantUpgrade: 'shield',
+    requireLevel: 0,
+  },
+  armor_basic: {
+    label: '🥋 Läderrustning',
+    description: 'Stickad och stoppad — bättre än ingen.',
+    input: { hide: 6, wood: 3 },
+    grantUpgrade: 'armor',
+    requireLevel: 0,
   },
 };
 
@@ -79,6 +121,8 @@ export class Upgrades {
       boots: 0,
       sword: 0,
       bow: 0,
+      shield: 0,
+      armor: 0,
     };
   }
 
@@ -143,5 +187,24 @@ export class Upgrades {
 
   getBowRange() {
     return UPGRADES.bow.range(this.levels.bow);
+  }
+
+  getShieldDefense() {
+    return UPGRADES.shield.defense(this.levels.shield);
+  }
+
+  getArmorDefense() {
+    return UPGRADES.armor.defense(this.levels.armor);
+  }
+
+  getDefense() {
+    return this.getShieldDefense() + this.getArmorDefense();
+  }
+
+  grantUpgrade(key) {
+    if (!UPGRADES[key]) return false;
+    if (this.levels[key] >= UPGRADES[key].maxLevel) return false;
+    this.levels[key] = Math.max(this.levels[key], 1);
+    return true;
   }
 }
