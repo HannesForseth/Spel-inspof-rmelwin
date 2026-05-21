@@ -26,6 +26,7 @@ export class World {
     this.createCave();
     this.createCamp();
     this.createTrollLair();
+    this.createArena();
     this.createPaths();
     this.createFlowers();
     this.spawnTrees();
@@ -478,6 +479,44 @@ export class World {
     this.obstacles.push({ x: pos.x, z: pos.z, radius: 2.0 });
   }
 
+  // Gurubashi-stil arena med yttervägg, åskådarplatser och hörntorn
+  createArena() {
+    this.arenaCenter = new THREE.Vector3(95, 0, 75);
+    const cx = this.arenaCenter.x;
+    const cz = this.arenaCenter.z;
+
+    // Kollisioner — yttervägg är ~28m radie, lämna öppningar i N/S/E/W
+    const wallRadius = 28;
+    const segments = 28;
+    for (let i = 0; i < segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const deg = (angle * 180) / Math.PI;
+      const nearGate = [0, 90, 180, 270].some((d) => {
+        const diff = Math.abs(deg - d);
+        return diff < 14 || diff > 346;
+      });
+      if (nearGate) continue;
+      this.obstacles.push({
+        x: cx + Math.cos(angle) * wallRadius,
+        z: cz + Math.sin(angle) * wallRadius,
+        radius: 2,
+      });
+    }
+
+    cloneModel('/models/arena.glb')
+      .then(({ root }) => {
+        root.position.set(cx, 0, cz);
+        root.traverse((obj) => {
+          if (obj.isMesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+          }
+        });
+        this.scene.add(root);
+      })
+      .catch((err) => console.warn('arena.glb kunde inte laddas', err));
+  }
+
   // Bruna stigar mellan viktiga platser (stoppar vid sjö/grotta)
   createPaths() {
     const dirtMat = new THREE.MeshStandardMaterial({ color: 0x8b6f47, roughness: 0.95 });
@@ -493,6 +532,7 @@ export class World {
       { from: new THREE.Vector3(0, 0, 4), to: gatePos },
       { from: gatePos, to: this.pondCenter, stopAtPond: true },
       { from: gatePos, to: this.caveCenter, stopAtCave: true },
+      { from: this.arenaCenter, to: this.pondCenter, stopAtPond: true },
     ];
     for (const p of places) {
       this._drawPath(p.from, p.to, dirtMat, p);
