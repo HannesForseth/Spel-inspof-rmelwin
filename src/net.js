@@ -18,8 +18,8 @@ class Net extends EventTarget {
     this.socket = null;
     this.connected = false;
     this.onlineCount = 0;
-    this.players = new Map();
     this.me = null;
+    this.worldState = null;
   }
 
   async connect() {
@@ -62,18 +62,38 @@ class Net extends EventTarget {
     });
 
     this.socket.on('player:joined', (payload) => {
-      this.players.set(payload.userId, payload);
       this.onlineCount += 1;
       this._emit('player:joined', payload);
     });
 
     this.socket.on('player:left', (payload) => {
-      this.players.delete(payload.userId);
       this.onlineCount = Math.max(0, this.onlineCount - 1);
       this._emit('player:left', payload);
     });
 
+    this.socket.on('world:state', (payload) => {
+      this.worldState = payload;
+      this.onlineCount = payload.players.length;
+      this._emit('world:state', payload);
+    });
+
+    this.socket.on('chat:message', (msg) => {
+      this._emit('chat:message', msg);
+    });
+
     return true;
+  }
+
+  sendInput(payload) {
+    if (this.socket?.connected) {
+      this.socket.volatile.emit('player:input', payload);
+    }
+  }
+
+  sendChat(text) {
+    if (this.socket?.connected) {
+      this.socket.emit('chat:message', text);
+    }
   }
 
   disconnect() {
@@ -82,7 +102,7 @@ class Net extends EventTarget {
       this.socket = null;
     }
     this.connected = false;
-    this.players.clear();
+    this.worldState = null;
   }
 
   _emit(name, detail) {

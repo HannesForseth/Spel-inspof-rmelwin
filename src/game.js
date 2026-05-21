@@ -9,6 +9,11 @@ import { Save } from './save.js';
 import { DayNight } from './daynight.js';
 import { Rabbit, Deer, Bear, Wolf, Troll } from './creatures.js';
 import { Arrow, HitEffect, findNearestTarget } from './combat.js';
+import { net } from './net.js';
+import { RemotePlayer } from './remotePlayer.js';
+
+const INPUT_SEND_HZ = 20;
+const INPUT_SEND_INTERVAL = 1 / INPUT_SEND_HZ;
 
 const INTERACT_RANGE = 3.0;
 const SWORD_RANGE = 3.0;
@@ -69,6 +74,13 @@ export class Game {
     this.interactProgress = 0;
     this.cameraShake = 0;
     this.cameraShakeIntensity = 0;
+
+    this.remotePlayers = new Map();
+    this.inputSendTimer = 0;
+    net.addEventListener('world:state', (e) => this._onWorldState(e.detail));
+    net.addEventListener('player:left', (e) =>
+      this._removeRemotePlayer(e.detail.userId),
+    );
 
     // Sätt aktivt vapen om man redan äger något
     if (this.upgrades.hasWeapon('sword')) this.controls.selectedWeapon = 'sword';
@@ -419,6 +431,14 @@ export class Game {
 
     this.world.update(dt);
 
+    // Multiplayer: skicka egen position, uppdatera andra spelare
+    for (const rp of this.remotePlayers.values()) rp.update(dt);
+    this.inputSendTimer += dt;
+    if (this.inputSendTimer >= INPUT_SEND_INTERVAL) {
+      this.inputSendTimer = 0;
+      this._sendInput();
+    }
+
     this.ui.update({
       nearest,
       interactingWith: this.interactingWith,
@@ -651,5 +671,59 @@ export class Game {
     }
     this.ui.showToast('Du har inget att äta!');
     return false;
+  }
+
+  _sendInput() {
+    let action = 'idle';
+    if (this.player.hp <= 0) action = 'ghost';
+    else if (this.player.swinging) action = 'attack';
+    else if (this.player.isChopping) action = 'work';
+    else if (
+      this.controls.isDown('w') ||
+      this.controls.isDown('a') ||
+      this.controls.isDown('s') ||
+      this.controls.isDown('d')
+    ) {
+      action = this.controls.isDown('shift') ? 'run' : 'walk';
+    }
+
+    net.sendInput({
+      x: this.player.position.x,
+      y: this.player.position.y,
+      z: this.player.position.z,
+      facing: this.player.facing,
+      action,
+      hp: this.player.hp,
+      weapon: this.player.activeWeapon,
+    });
+  }
+
+  _onWorldState(state) {
+    const seen = new Set();
+    for (const p of state.players) {
+      if (p.userId === net.me?.userId) continue;
+      seen.add(p.userId);
+      let rp = this.remotePlayers.get(p.userId);
+      if (!rp) {
+        rp = new RemotePlayer(this.scene, p.userId, p.username);
+        rp.position.set(p.x, p.y, p.z);
+        this.remotePlayers.set(p.userId, rp);
+      }
+      rp.setTargetState(p);
+    }
+    for (const [id, rp] of this.remotePlayers) {
+      if (!seen.has(id)) {
+        rp.destroy();
+        this.remotePlayers.delete(id);
+      }
+    }
+  }
+
+  _removeRemotePlayer(userId) {
+    const rp = this.remotePlayers.get(userId);
+    if (rp) {
+      rp.destroy();
+      this.remotePlayers.delete(userId);
+    }
   }
 }
