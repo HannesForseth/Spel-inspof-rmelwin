@@ -18,6 +18,7 @@ export class Save {
       equipped: { ...player.equipped },
       player: {
         x: player.position.x,
+        y: player.position.y,
         z: player.position.z,
         hp: player.hp,
       },
@@ -51,6 +52,7 @@ export class Save {
       if (data.player) {
         player.position.x = data.player.x;
         player.position.z = data.player.z;
+        if (typeof data.player.y === 'number') player.position.y = data.player.y;
         if (typeof data.player.hp === 'number') player.hp = data.player.hp;
         player.group.position.copy(player.position);
       }

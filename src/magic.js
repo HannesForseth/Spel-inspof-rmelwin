@@ -163,7 +163,7 @@ export class AOEEffect {
     );
     this.ring.rotation.x = -Math.PI / 2;
     this.ring.position.copy(originPos);
-    this.ring.position.y = 0.06;
+    this.ring.position.y = originPos.y + 0.06;
     scene.add(this.ring);
 
     this.fillDisc = new THREE.Mesh(
@@ -179,7 +179,7 @@ export class AOEEffect {
     );
     this.fillDisc.rotation.x = -Math.PI / 2;
     this.fillDisc.position.copy(originPos);
-    this.fillDisc.position.y = 0.05;
+    this.fillDisc.position.y = originPos.y + 0.05;
     scene.add(this.fillDisc);
 
     this.flashSphere = new THREE.Mesh(
@@ -193,12 +193,12 @@ export class AOEEffect {
       }),
     );
     this.flashSphere.position.copy(originPos);
-    this.flashSphere.position.y = 1.5;
+    this.flashSphere.position.y = originPos.y + 1.5;
     scene.add(this.flashSphere);
 
     this.light = new THREE.PointLight(spell.color, 12, spell.radius * 3);
     this.light.position.copy(originPos);
-    this.light.position.y = 3;
+    this.light.position.y = originPos.y + 3;
     scene.add(this.light);
 
     for (const t of targets) {
