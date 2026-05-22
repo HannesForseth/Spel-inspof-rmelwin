@@ -173,26 +173,26 @@ export class Player {
       );
 
       if (this._handR) {
-        this._attachWeapon('/models/sword.glb', this._handR).then((m) => {
+        this._attachWeapon('/models/weapon_sword.glb', this._handR).then((m) => {
           this._glbSword = m;
         });
-        this._attachWeapon('/models/axe.glb', this._handR).then((m) => {
+        this._attachWeapon('/models/weapon_axe.glb', this._handR).then((m) => {
           this._glbAxe = m;
         });
-        this._attachWeapon('/models/shadow_sword.glb', this._handR, {
+        this._attachWeapon('/models/weapon_shadow_sword.glb', this._handR, {
           boostEmissive: true,
         }).then((m) => {
           this._glbShadowSword = m;
         });
       }
       if (this._handL) {
-        this._attachWeapon('/models/bow.glb', this._handL).then((m) => {
+        this._attachWeapon('/models/weapon_bow.glb', this._handL).then((m) => {
           this._glbBow = m;
         });
-        this._attachWeapon('/models/shield.glb', this._handL).then((m) => {
+        this._attachWeapon('/models/weapon_shield.glb', this._handL).then((m) => {
           this._glbShield = m;
         });
-        this._attachWeapon('/models/shadow_shield.glb', this._handL, {
+        this._attachWeapon('/models/weapon_shadow_shield.glb', this._handL, {
           boostEmissive: true,
         }).then((m) => {
           this._glbShadowShield = m;
@@ -766,9 +766,11 @@ export class Player {
     return this.hp > 0;
   }
 
-  respawn() {
+  respawn(spawnPoint) {
     this.hp = this.maxHp;
-    this.position.set(0, this.groundY, 0);
+    const sx = spawnPoint?.x ?? 0;
+    const sz = spawnPoint?.z ?? 0;
+    this.position.set(sx, this.groundY, sz);
     this.yVel = 0;
     this.onGround = true;
     this.group.position.copy(this.position);

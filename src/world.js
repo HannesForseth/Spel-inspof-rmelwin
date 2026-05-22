@@ -32,14 +32,17 @@ export class World {
     this._raycaster = new THREE.Raycaster();
     this._raycaster.far = 600;
 
-    // Byn (tidigare "lägret") - safezone på samma plats som gamla lägret.
+    // Byn - safezone. village.glb är bakad i Blender med mesh-vertices
+    // vid x≈200, så meshen läggs vid scene-origin men dess synliga
+    // centrum hamnar vid (200, 0, 0). villageCenter/safezone matchar.
     // campCenter/campRadius behålls som namn för bakåtkompabilitet med
     // creatures.js (vargar undviker camp) och resolveCollision.
-    this.campCenter = new THREE.Vector3(0, 0, -14);
+    this.campCenter = new THREE.Vector3(200, 0, 0);
     this.campRadius = 25;
-    // Alias som visar att det är en by nu
     this.villageCenter = this.campCenter;
     this.villageRadius = this.campRadius;
+    // Spelarens spawn-position - mitt i byn så de börjar i safezone
+    this.playerSpawn = new THREE.Vector3(200, 0, 0);
 
     // Ladda Blender-värld FÖRST så terrängen är på plats redan när
     // träd/byn etc skapas - om det fortfarande är async fyller vi
@@ -117,6 +120,29 @@ export class World {
       this.blenderProps = props;
     } catch (e) {
       console.warn('[World] world_props.glb kunde inte laddas', e);
+    }
+
+    // Nya världs-features från Blender. Alla är bakade i världs-
+    // koordinater så läggs vid scen-origin (0,0,0). Vatten är visuellt
+    // bara för nu - ingen drunkningsmekanik.
+    for (const url of [
+      '/models/foundations.glb',
+      '/models/lakes.glb',
+      '/models/river.glb',
+    ]) {
+      try {
+        const { root } = await cloneModel(url);
+        root.traverse((o) => {
+          if (o.isMesh) {
+            o.receiveShadow = true;
+            // Stora plana ytor (vatten) ska inte casta tunga skuggor
+            o.castShadow = false;
+          }
+        });
+        this.scene.add(root);
+      } catch (e) {
+        console.warn('[World] ' + url + ' kunde inte laddas', e);
+      }
     }
   }
 
@@ -326,15 +352,11 @@ export class World {
     }
   }
 
-  // Ny by - laddar village.glb och placerar interactables (smed, eld)
-  // vid rätt offset i village-local space. Den gamla procedurella
-  // lägervisualisering är borttagen.
+  // Ny by - laddar village.glb. Meshens vertices är bakade i Blender
+  // vid x≈200, så vi placerar GLB-roten vid scen-origin och den
+  // synliga byn hamnar då vid (200, 0, 0) som villageCenter.
   createVillage() {
     const c = this.campCenter;
-    // Smedjepositioner från village.blend: smithy i +x-delen, blacksmith
-    // står vid städet. Bygg in y=0 i positioner — terrain-snap höjer dem.
-    const blacksmithLocal = new THREE.Vector3(12, 0, -10);
-    const campfireLocal = new THREE.Vector3(0, 0, 0);
 
     // Wall-blocking via resolveCollision är avstängd för byn (gateAngle
     // täcker hela cirkeln). GLB-meshen har egna byggnader; obstacles
@@ -342,10 +364,11 @@ export class World {
     this.gateAngleMin = 0;
     this.gateAngleMax = Math.PI * 2;
 
-    // Ladda village.glb asynkront
+    // Ladda village.glb asynkront. Den ligger med vertices bakade vid
+    // x≈200 (Blender-position), så placera root vid (0,0,0) i scenen.
     cloneModel('/models/village.glb')
       .then(({ root }) => {
-        root.position.set(c.x, 0, c.z);
+        root.position.set(0, 0, 0);
         root.traverse((obj) => {
           if (obj.isMesh) {
             obj.castShadow = true;
@@ -357,7 +380,7 @@ export class World {
       })
       .catch((err) => console.warn('village.glb kunde inte laddas', err));
 
-    // Lyktor och eld: lite varma point lights för stämning på natten
+    // Lyktor och eld: varma point lights för stämning på natten
     for (const [lx, lz] of [
       [4.24, 4.24], [-4.24, 4.24], [4.24, -4.24], [-4.24, -4.24],
     ]) {
@@ -370,23 +393,22 @@ export class World {
     fireLight.position.set(c.x, 2.2, c.z);
     this._addToScene(fireLight);
 
-    // Campfire-interactable: gör elden interactable för matlagning.
-    // Mesh ligger redan i village.glb, men vi behöver objektet för
-    // canHarvest('cook') osv. Sätt visuell mesh till osynlig.
-    const firePos = new THREE.Vector3(c.x + campfireLocal.x, 0, c.z + campfireLocal.z);
+    // Campfire-interactable för matlagning (visuell mesh göms - village.glb
+    // visar elden själv)
+    const firePos = new THREE.Vector3(c.x, 0, c.z);
     const fire = new Campfire(this.scene, firePos);
-    // Gör Campfire-instansens egen mesh osynlig - village.glb visar elden
     if (fire.group) fire.group.visible = false;
     this.interactables.push(fire);
     this.campfire = fire;
 
-    // Smeden står vid städet inne i smedjan
-    const blacksmithPos = new THREE.Vector3(c.x + blacksmithLocal.x, 0, c.z + blacksmithLocal.z);
+    // Smeden står vid städet inne i smedjan (i nya village.glb är smedjan
+    // ungefär +12 x, -10 z från byns centrum)
+    const blacksmithPos = new THREE.Vector3(c.x + 12, 0, c.z - 10);
     this.blacksmith = new Blacksmith(this.scene, blacksmithPos);
     this.merchant = this.blacksmith; // alias för bakåtkompabilitet
     this.interactables.push(this.blacksmith);
 
-    // Kollisionscylinder för smedjebyggnaden (ungefär 6×5m)
+    // Kollisionscylinder för smedjebyggnaden
     this.obstacles.push({ x: c.x + 10, z: c.z - 10, radius: 3 });
     // Watchtower
     this.obstacles.push({ x: c.x - 12, z: c.z + 12, radius: 1.2 });

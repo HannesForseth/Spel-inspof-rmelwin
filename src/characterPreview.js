@@ -57,14 +57,14 @@ export class CharacterPreview {
       const handR = root.getObjectByName('hand.R');
       const handL = root.getObjectByName('hand.L');
       if (handR) {
-        this._attach('/models/sword.glb', handR, 'sword');
-        this._attach('/models/axe.glb', handR, 'axe');
-        this._attach('/models/shadow_sword.glb', handR, 'shadowSword', { boostEmissive: true });
+        this._attach('/models/weapon_sword.glb', handR, 'sword');
+        this._attach('/models/weapon_axe.glb', handR, 'axe');
+        this._attach('/models/weapon_shadow_sword.glb', handR, 'shadowSword', { boostEmissive: true });
       }
       if (handL) {
-        this._attach('/models/bow.glb', handL, 'bow');
-        this._attach('/models/shield.glb', handL, 'shield');
-        this._attach('/models/shadow_shield.glb', handL, 'shadowShield', { boostEmissive: true });
+        this._attach('/models/weapon_bow.glb', handL, 'bow');
+        this._attach('/models/weapon_shield.glb', handL, 'shield');
+        this._attach('/models/weapon_shadow_shield.glb', handL, 'shadowShield', { boostEmissive: true });
       }
       loadArmorOntoSkeleton('/models/armor_silver.glb', root).then((g) => {
         this.armorGroup = g;

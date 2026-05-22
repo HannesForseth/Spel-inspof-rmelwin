@@ -64,6 +64,12 @@ export class Game {
     this.player = new Player(this.scene, {
       forceShadowArmor: !!opts.forceShadowArmor,
     });
+    // Spawna spelaren mitt i byn (innan save.load - om det finns en
+    // sparad position överrider den)
+    if (this.world.playerSpawn) {
+      this.player.position.copy(this.world.playerSpawn);
+      this.player.group.position.copy(this.player.position);
+    }
     this.controls = new Controls();
     this.dayNight = new DayNight(this.scene, this.sun, this.ambient);
     this.ui = new UI(this);
@@ -765,7 +771,7 @@ export class Game {
 
   _playerDied() {
     this.ui.showToast('💀 Du dog! Återupplivar i lägret...');
-    this.player.respawn();
+    this.player.respawn(this.world.playerSpawn);
     // Förlora hälften av inventariet som straff
     this.inventory.wood = Math.floor(this.inventory.wood / 2);
     this.inventory.berry = Math.floor(this.inventory.berry / 2);
