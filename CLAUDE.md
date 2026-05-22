@@ -80,16 +80,33 @@ src/
 
 public/models/           Alla .glb-assets.
 ├─ armor_silver.glb, armor_shadow.glb
-├─ player.glb, player_silver.glb
-├─ sword.glb, bow.glb, shield.glb, axe.glb
-├─ shadow_sword.glb, shadow_shield.glb
-├─ wolf.glb, bjorn.glb, bjorn_boss.glb
+├─ player.glb
+├─ weapon_sword.glb, weapon_bow.glb, weapon_shield.glb, weapon_axe.glb
+├─ weapon_shadow_sword.glb, weapon_shadow_shield.glb
+├─ wolf.glb, bjorn_boss.glb
 ├─ village.glb, cave.glb, arena.glb
 ├─ world_terrain.glb, world_props.glb
-├─ magi/{fireball,iceball,lightning_bolt}.glb
-└─ props/{autumntree,birchtree,boulder,bush,cactus,deadtree,
-          mountain,oaktree,pinetree,rock,snowymountain,stump}.glb
+├─ foundations.glb, lakes.glb, river.glb     (Blender-bakade världs-features)
+├─ magi/{magic_fireball,magic_iceball,magic_lightning}.glb
+├─ props/prop_{autumntree,birchtree,boulder,bush,cactus,deadtree,
+│            deadtreewater,fishinghut,icefloe,lakeboulder,lilypad,
+│            mountain,oaktree,pier,pinetree,reeds,rock,ropebridge,
+│            rowboat,snowymountain,stump,bridgestone,bridgewood}.glb
+└─ props/propvar_*.glb                       (storleks- och färgvarianter)
 ```
+
+## Namnkonvention (Blender-prefix)
+
+Sedan v1-droppen (maj 2026) använder vi prefix per asset-typ:
+- `weapon_<name>.glb` — hand-vapen
+- `magic_<name>.glb` — magi-projektiler (i `magi/`)
+- `prop_<name>.glb` — fristående props (träd, stenar, broar, hav)
+- `propvar_<name>.glb` — storleks-/färgvarianter (`_l/_m/_s` eller `_red`/`_yellow`)
+- `armor_<set>.glb` — rustnings-set (skinned)
+- `world_<feature>.glb` — stora globala mesher som täcker världen
+
+Karaktärer/byggnader (`player`, `wolf`, `bjorn_boss`, `village`, `cave`,
+`arena`, `lakes`, `river`, `foundations`) har inget prefix.
 
 ## Asset-pipeline (game-sidan)
 
@@ -237,15 +254,32 @@ skuggvolymen (±100 m runt sun.target) följer spelaren.
 
 ## Gameplay-positioner (referens)
 
-| Plats        | (x, _, z)    | Radie   | Anmärkning             |
-|--------------|--------------|---------|------------------------|
-| Village/camp | (0, _, -14)  | 25 m    | Safezone (HP-regen 2/s) |
-| Cave         | (-50, _, 30) | ~14 m   | Björnens grotta        |
-| Arena        | (95, _, 75)  | ~30 m   | Loaded från arena.glb  |
-| Troll lair   | (70, _, -60) | ~9 m    |                        |
+| Plats        | (x, _, z)    | Radie   | Anmärkning                |
+|--------------|--------------|---------|---------------------------|
+| Village/camp | (200, _, 0)  | 25 m    | Safezone (HP-regen 2/s), spelar-spawn |
+| Cave         | (-50, _, 30) | ~14 m   | Björnens grotta           |
+| Arena        | (95, _, 75)  | ~30 m   | Loaded från arena.glb     |
+| Troll lair   | (70, _, -60) | ~9 m    |                           |
 
-Player spawnar vid `(0, _, 0)`. Sitter på village-safezonens nordliga
-del (eftersom radius 25 från center -14 → innefattar 0).
+Player spawnar vid `world.playerSpawn = (200, _, 0)` (mitt i byn).
+Andra gameplay-platser ligger runt ursprungs-origo, så spelaren går
+västerut ~200m från byn för att hitta cave/arena/troll.
+
+### Var hamnar GLB i världen?
+
+- **`village.glb`**: meshen är bakad i Blender-koordinater vid x≈200
+  (range 175-225). Vi placerar GLB-roten vid scen-origo `(0,0,0)`, så
+  byn syns vid sin bakade position (200, 0, 0). Detta är "Blender-
+  positionen"-konventionen: villkoret att meshens vertices har
+  korrekt world-koord.
+- **`lakes.glb`, `river.glb`, `foundations.glb`, `world_terrain.glb`,
+  `world_props.glb`**: samma — bakade i Blender, placeras vid `(0,0,0)`.
+- **`cave.glb`, `arena.glb`**: meshen är centrerad runt origo internt
+  → placeras manuellt på sin game.js-position (`caveCenter`,
+  `arenaCenter`).
+- **`village.glb` blacksmith/campfire**: hårdkodade offsets från
+  `villageCenter` i `world.js` (smedjan ungefär +12 x, -10 z). Om
+  Blender-instansen rör om i village-layouten, justera dessa.
 
 ## Vanliga ändringsuppgifter
 
