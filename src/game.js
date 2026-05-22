@@ -349,6 +349,10 @@ export class Game {
     );
     this.player.updatePhysics(dt);
     this.player.updateMana(dt);
+    // HP-regen i byns safezone - 2 HP/s när spelaren står innanför muren
+    if (this.world.isInCamp(this.player.position)) {
+      this.player.heal(2 * dt);
+    }
     this.player.updateAnimation(dt, moveVec.lengthSq() > 0.001);
     if (!this.player.isAlive()) this._playerDied();
 

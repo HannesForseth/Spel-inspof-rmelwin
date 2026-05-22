@@ -1,5 +1,26 @@
 import * as THREE from 'three';
 
+// Smed i den nya byn - byggd in i village.glb visuellt, så denna
+// interactable är "osynlig" (en tom Group). Funktionen är samma som
+// Merchant: tryck E för att öppna butiken.
+export class Blacksmith {
+  constructor(scene, position) {
+    this.scene = scene;
+    this.position = position.clone();
+    this.label = 'smeden';
+    this.actionLabel = 'Prata med';
+    this.actionType = 'trade';
+    this.group = new THREE.Group();
+    this.group.position.copy(position);
+    scene.add(this.group);
+  }
+  isActive() { return true; }
+  canHarvest() { return true; }
+  getHarvestDuration() { return 0.1; }
+  harvest() { return { type: 'trade' }; }
+  update() {}
+}
+
 // Köpman - står i lägret bredvid sitt städ.
 // Spelaren går till honom och trycker E för att öppna butiken.
 export class Merchant {

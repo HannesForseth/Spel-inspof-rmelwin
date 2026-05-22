@@ -270,8 +270,13 @@ export class Player {
     const shadow = !!this.forceShadowArmor;
     const swordOn = this.equipped.sword && this.activeWeapon === 'sword' && !this.isChopping;
     const shieldOn = this.equipped.shield && this.activeWeapon !== 'bow' && !this.isChopping;
-    if (this._glbSword) this._glbSword.visible = !shadow && swordOn;
-    if (this._glbShadowSword) this._glbShadowSword.visible = shadow && swordOn;
+    // Visa shadow om den finns laddad, annars fall tillbaka till silver så
+    // vapnen är synliga även innan shadow-GLBs har hunnit hämtas
+    const useShadowSword = shadow && !!this._glbShadowSword;
+    const useShadowShield = shadow && !!this._glbShadowShield;
+    const useShadowArmor = shadow && !!this._glbShadowArmor;
+    if (this._glbSword) this._glbSword.visible = !useShadowSword && swordOn;
+    if (this._glbShadowSword) this._glbShadowSword.visible = useShadowSword && swordOn;
     if (this._glbBow) {
       this._glbBow.visible =
         this.equipped.bow && this.activeWeapon === 'bow' && !this.isChopping;
@@ -279,12 +284,11 @@ export class Player {
     if (this._glbAxe) {
       this._glbAxe.visible = this.isChopping;
     }
-    if (this._glbShield) this._glbShield.visible = !shadow && shieldOn;
-    if (this._glbShadowShield) this._glbShadowShield.visible = shadow && shieldOn;
-    if (this._glbShadowArmor) this._glbShadowArmor.visible = shadow;
+    if (this._glbShield) this._glbShield.visible = !useShadowShield && shieldOn;
+    if (this._glbShadowShield) this._glbShadowShield.visible = useShadowShield && shieldOn;
+    if (this._glbShadowArmor) this._glbShadowArmor.visible = useShadowArmor;
     if (this._glbArmor) {
-      // Silver göms när shadow forceas så de inte clippar varandra
-      this._glbArmor.visible = !shadow && !!this.equipped.armor;
+      this._glbArmor.visible = !useShadowArmor && !!this.equipped.armor;
     }
 
     let next;

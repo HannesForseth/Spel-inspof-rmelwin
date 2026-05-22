@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { Tree, Bush, FishingSpot, Campfire } from './resources.js';
-import { Merchant, Anvil } from './npc.js';
+import { Tree, Bush, Campfire } from './resources.js';
+import { Blacksmith } from './npc.js';
 import { cloneModel } from './models.js';
 
 const PLAYER_RADIUS = 0.45;
@@ -32,19 +32,25 @@ export class World {
     this._raycaster = new THREE.Raycaster();
     this._raycaster.far = 600;
 
-    // Läger - större för att rymma fler NPC senare
+    // Byn (tidigare "lägret") - safezone på samma plats som gamla lägret.
+    // campCenter/campRadius behålls som namn för bakåtkompabilitet med
+    // creatures.js (vargar undviker camp) och resolveCollision.
     this.campCenter = new THREE.Vector3(0, 0, -14);
-    this.campRadius = 12;
+    this.campRadius = 25;
+    // Alias som visar att det är en by nu
+    this.villageCenter = this.campCenter;
+    this.villageRadius = this.campRadius;
 
     // Ladda Blender-värld FÖRST så terrängen är på plats redan när
-    // träd/camp/etc skapas - om det fortfarande är async fyller vi
+    // träd/byn etc skapas - om det fortfarande är async fyller vi
     // i y-värden i efterhand via _snapWorldToTerrain
     this._loadBlenderWorld();
 
     this.createGround();
-    this.createPond();
+    // createPond() borttagen - den procedurella sjön såg konstig ut
+    // ovanpå Blender-terrängen. Fishing-spot är borta som följd.
     this.createCave();
-    this.createCamp();
+    this.createVillage();
     this.createTrollLair();
     this.createArena();
     this.createPaths();
@@ -229,101 +235,10 @@ export class World {
     this._safetyGround = safety;
   }
 
-  // Slät, organisk sjö via CatmullRom-kurva genom anchors
-  createPond() {
-    this.pondCenter = new THREE.Vector3(35, 0, 30);
-    this.pondAvgRadius = 14;
-
-    // Anchor-punkter med varierande radie för organisk form
-    const numAnchors = 14;
-    const anchors = [];
-    for (let i = 0; i < numAnchors; i++) {
-      const angle = (i / numAnchors) * Math.PI * 2;
-      const r =
-        this.pondAvgRadius +
-        Math.sin(angle * 2.3) * 2.8 +
-        Math.cos(angle * 1.7) * 2.2;
-      anchors.push(new THREE.Vector3(Math.cos(angle) * r, 0, Math.sin(angle) * r));
-    }
-    this.pondAnchors = anchors;
-
-    // Slät kurva genom alla anchors (closed)
-    const curve = new THREE.CatmullRomCurve3(anchors, true, 'catmullrom', 0.5);
-    const samplePoints = curve.getPoints(96);
-    this.pondSamplePoints = samplePoints;
-
-    // Hjälp-funktion för att bygga en shape från skalade punkter
-    const makeShape = (scale) => {
-      const s = new THREE.Shape();
-      s.moveTo(samplePoints[0].x * scale, samplePoints[0].z * scale);
-      for (let i = 1; i < samplePoints.length; i++) {
-        s.lineTo(samplePoints[i].x * scale, samplePoints[i].z * scale);
-      }
-      s.closePath();
-      return s;
-    };
-
-    // Sand-strand: lite större än vattnet
-    const sand = new THREE.Mesh(
-      new THREE.ShapeGeometry(makeShape(1.13)),
-      new THREE.MeshStandardMaterial({ color: 0xd4b487, roughness: 0.95 }),
-    );
-    sand.rotation.x = -Math.PI / 2;
-    sand.position.set(this.pondCenter.x, 0.015, this.pondCenter.z);
-    sand.receiveShadow = true;
-    this._addToScene(sand);
-
-    // Botten - mörkblå, lite mindre än vattnet och något under marknivå
-    const bottom = new THREE.Mesh(
-      new THREE.ShapeGeometry(makeShape(0.94)),
-      new THREE.MeshStandardMaterial({ color: 0x0d3a52, roughness: 0.9 }),
-    );
-    bottom.rotation.x = -Math.PI / 2;
-    bottom.position.set(this.pondCenter.x, -0.35, this.pondCenter.z);
-    this._addToScene(bottom);
-
-    // Vattenyta - halvtransparent över botten
-    this.water = new THREE.Mesh(
-      new THREE.ShapeGeometry(makeShape(1)),
-      new THREE.MeshStandardMaterial({
-        color: 0x2196f3,
-        transparent: true,
-        opacity: 0.72,
-        metalness: 0.4,
-        roughness: 0.15,
-      }),
-    );
-    this.water.rotation.x = -Math.PI / 2;
-    this.water.position.set(this.pondCenter.x, 0.05, this.pondCenter.z);
-    this._addToScene(this.water);
-
-    // Fiskeplats - bryggan ska sticka ut över vattnet, fötter på sand
-    const westPoint = samplePoints.reduce((best, p) => {
-      return !best || p.x < best.x ? p : best;
-    });
-    // Placera vid kanten (faktor 1.02 = precis utanför vattnet)
-    const fishingPos = new THREE.Vector3(
-      this.pondCenter.x + westPoint.x * 1.02,
-      0,
-      this.pondCenter.z + westPoint.z * 1.02,
-    );
-    const spot = new FishingSpot(this.scene, fishingPos);
-    // Rotera bryggan så den pekar in mot sjön
-    const inDx = -westPoint.x;
-    const inDz = -westPoint.z;
-    spot.group.rotation.y = Math.atan2(inDx, inDz);
-    this.interactables.push(spot);
-
-    // Kollisionspunkter längs sjökanten - var 4:e samplepunkt
-    for (let i = 0; i < samplePoints.length; i += 4) {
-      const p = samplePoints[i];
-      this.obstacles.push({
-        x: this.pondCenter.x + p.x,
-        z: this.pondCenter.z + p.z,
-        radius: 0.8,
-      });
-    }
-  }
+  // Den procedurella sjön är borta. _inPond returnerar false så
+  // drunkningsmekaniken och pond-push-out aldrig triggas. Fishing-rod-
+  // uppgraderingen kan inte användas men ligger kvar för senare nytt
+  // fiske vid en annan plats.
 
   // Grottan: GLB-mesh från Blender + bevarade kollisioner och fackla
   createCave() {
@@ -411,109 +326,70 @@ export class World {
     }
   }
 
-  createCamp() {
+  // Ny by - laddar village.glb och placerar interactables (smed, eld)
+  // vid rätt offset i village-local space. Den gamla procedurella
+  // lägervisualisering är borttagen.
+  createVillage() {
     const c = this.campCenter;
-    const r = this.campRadius;
+    // Smedjepositioner från village.blend: smithy i +x-delen, blacksmith
+    // står vid städet. Bygg in y=0 i positioner — terrain-snap höjer dem.
+    const blacksmithLocal = new THREE.Vector3(12, 0, -10);
+    const campfireLocal = new THREE.Vector3(0, 0, 0);
 
-    // Markgolv
-    const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(r, 32),
-      new THREE.MeshStandardMaterial({ color: 0x8d6e63 }),
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set(c.x, 0.02, c.z);
-    floor.receiveShadow = true;
-    this._addToScene(floor);
+    // Wall-blocking via resolveCollision är avstängd för byn (gateAngle
+    // täcker hela cirkeln). GLB-meshen har egna byggnader; obstacles
+    // läggs in för de stora som smedjan så spelaren inte går igenom.
+    this.gateAngleMin = 0;
+    this.gateAngleMax = Math.PI * 2;
 
-    // Palissad
-    const logMat = new THREE.MeshStandardMaterial({ color: 0x6d4c2a });
-    const segments = 64;
-    // Gate-öppning: större port nu (75-105° söderut)
-    this.gateAngleMin = (75 * Math.PI) / 180;
-    this.gateAngleMax = (105 * Math.PI) / 180;
-    for (let i = 0; i < segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      if (angle > this.gateAngleMin && angle < this.gateAngleMax) continue;
-      const log = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.2, 0.22, 2.2, 6),
-        logMat,
-      );
-      log.position.set(c.x + Math.cos(angle) * r, 1.1 + Math.random() * 0.15, c.z + Math.sin(angle) * r);
-      log.rotation.y = angle;
-      log.rotation.z = (Math.random() - 0.5) * 0.05;
-      log.castShadow = true;
-      log.receiveShadow = true;
-      this._addToScene(log);
+    // Ladda village.glb asynkront
+    cloneModel('/models/village.glb')
+      .then(({ root }) => {
+        root.position.set(c.x, 0, c.z);
+        root.traverse((obj) => {
+          if (obj.isMesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+          }
+        });
+        this._addToScene(root);
+        this.villageRoot = root;
+      })
+      .catch((err) => console.warn('village.glb kunde inte laddas', err));
+
+    // Lyktor och eld: lite varma point lights för stämning på natten
+    for (const [lx, lz] of [
+      [4.24, 4.24], [-4.24, 4.24], [4.24, -4.24], [-4.24, -4.24],
+    ]) {
+      const lantern = new THREE.PointLight(0xfff088, 1.0, 12);
+      lantern.position.set(c.x + lx, 3.2, c.z + lz);
+      this._addToScene(lantern);
     }
-    // Spetsig topp på varje stock
-    for (let i = 0; i < segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      if (angle > this.gateAngleMin && angle < this.gateAngleMax) continue;
-      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.4, 6), logMat);
-      tip.position.set(c.x + Math.cos(angle) * r, 2.4, c.z + Math.sin(angle) * r);
-      this._addToScene(tip);
-    }
+    // Eldljus
+    const fireLight = new THREE.PointLight(0xff8a3d, 2.5, 14);
+    fireLight.position.set(c.x, 2.2, c.z);
+    this._addToScene(fireLight);
 
-    // Portstolpar vid gaten
-    for (const gateAngle of [this.gateAngleMin, this.gateAngleMax]) {
-      const post = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.3, 0.32, 2.8, 6),
-        logMat,
-      );
-      post.position.set(c.x + Math.cos(gateAngle) * r, 1.4, c.z + Math.sin(gateAngle) * r);
-      post.castShadow = true;
-      this._addToScene(post);
-    }
-
-    // Hyddan - bortre delen, nu lite mer åt norr i större läger
-    this._createHut(new THREE.Vector3(c.x - 4, 0, c.z - 6));
-
-    // Lägereld - mitt i lägret (precis söder om center)
-    const firePos = new THREE.Vector3(c.x, 0, c.z + 2);
+    // Campfire-interactable: gör elden interactable för matlagning.
+    // Mesh ligger redan i village.glb, men vi behöver objektet för
+    // canHarvest('cook') osv. Sätt visuell mesh till osynlig.
+    const firePos = new THREE.Vector3(c.x + campfireLocal.x, 0, c.z + campfireLocal.z);
     const fire = new Campfire(this.scene, firePos);
+    // Gör Campfire-instansens egen mesh osynlig - village.glb visar elden
+    if (fire.group) fire.group.visible = false;
     this.interactables.push(fire);
     this.campfire = fire;
-    this.obstacles.push({ x: firePos.x, z: firePos.z, radius: 0.9 });
 
-    // Köpman + städ - nordöstra sidan
-    const merchantPos = new THREE.Vector3(c.x + 4, 0, c.z - 3);
-    this.merchant = new Merchant(this.scene, merchantPos);
-    this.interactables.push(this.merchant);
-    this.obstacles.push({ x: merchantPos.x, z: merchantPos.z, radius: 0.55 });
+    // Smeden står vid städet inne i smedjan
+    const blacksmithPos = new THREE.Vector3(c.x + blacksmithLocal.x, 0, c.z + blacksmithLocal.z);
+    this.blacksmith = new Blacksmith(this.scene, blacksmithPos);
+    this.merchant = this.blacksmith; // alias för bakåtkompabilitet
+    this.interactables.push(this.blacksmith);
 
-    const anvilPos = new THREE.Vector3(c.x + 5.5, 0, c.z - 2.5);
-    this.anvil = new Anvil(this.scene, anvilPos);
-    this.obstacles.push({ x: anvilPos.x, z: anvilPos.z, radius: 0.6 });
-
-    // Plats reserverad för framtida NPC:s - markörer (synliga som "TBD")
-    this._placeFutureSlots(c);
-  }
-
-  // Markörer där framtida NPC:s ska stå (pelare med tomma "slottar")
-  _placeFutureSlots(c) {
-    const slots = [
-      { x: c.x - 5, z: c.z - 3, label: 'rustningssmed' },
-      { x: c.x - 6.5, z: c.z - 2, label: 'trollkarl' },
-    ];
-    for (const slot of slots) {
-      // Liten platta som markerar var nästa NPC ska stå
-      const pad = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.55, 0.55, 0.1, 12),
-        new THREE.MeshStandardMaterial({ color: 0x6d4c2a, roughness: 0.95 }),
-      );
-      pad.position.set(slot.x, 0.05, slot.z);
-      pad.receiveShadow = true;
-      this._addToScene(pad);
-
-      // Liten pelare/staty som platshållare
-      const post = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.1, 0.15, 1.2, 6),
-        new THREE.MeshStandardMaterial({ color: 0x5d4037 }),
-      );
-      post.position.set(slot.x, 0.7, slot.z);
-      post.castShadow = true;
-      this._addToScene(post);
-    }
+    // Kollisionscylinder för smedjebyggnaden (ungefär 6×5m)
+    this.obstacles.push({ x: c.x + 10, z: c.z - 10, radius: 3 });
+    // Watchtower
+    this.obstacles.push({ x: c.x - 12, z: c.z + 12, radius: 1.2 });
   }
 
   _createHut(pos) {
@@ -627,9 +503,8 @@ export class World {
 
     const places = [
       { from: new THREE.Vector3(0, 0, 4), to: gatePos },
-      { from: gatePos, to: this.pondCenter, stopAtPond: true },
       { from: gatePos, to: this.caveCenter, stopAtCave: true },
-      { from: this.arenaCenter, to: this.pondCenter, stopAtPond: true },
+      { from: gatePos, to: this.arenaCenter },
     ];
     for (const p of places) {
       this._drawPath(p.from, p.to, dirtMat, p);
@@ -767,13 +642,11 @@ export class World {
     }
   }
 
-  _inPond(x, z, margin = 0) {
-    const dx = x - this.pondCenter.x;
-    const dz = z - this.pondCenter.z;
-    const ang = Math.atan2(dz, dx);
-    // Använder samma formel som genererar anchors
-    const r = this.pondAvgRadius + Math.sin(ang * 2.3) * 2.8 + Math.cos(ang * 1.7) * 2.2;
-    return Math.sqrt(dx * dx + dz * dz) < r + margin;
+  _inPond() {
+    // Den procedurella sjön är borttagen. Lämnar funktionen kvar så
+    // gameplay-kod (drunkning, creature-push-out) inte krashar - den
+    // returnerar bara false så ingenting triggas.
+    return false;
   }
 
   _inCamp(x, z, margin = 0) {
